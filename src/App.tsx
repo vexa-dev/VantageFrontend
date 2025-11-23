@@ -1,10 +1,13 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import Login from './pages/Login';
+import Dashboard from './pages/Dashboard';
+import Backlog from './pages/Backlog';
+import Sprints from './pages/Sprints';
+import MainLayout from './components/MainLayout';
 import { useAuthStore } from './store/authStore';
 import type { JSX } from 'react';
 
 // Componente para proteger rutas privadas
-// Si no estás logueado, te patea al Login
 const PrivateRoute = ({ children }: { children: JSX.Element }) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   return isAuthenticated ? children : <Navigate to="/login" />;
@@ -17,17 +20,18 @@ function App() {
         {/* Ruta Pública */}
         <Route path="/login" element={<Login />} />
 
-        {/* Ruta Privada (Dashboard) - Por ahora un texto simple */}
+        {/* Rutas Privadas con Layout */}
         <Route
-          path="/"
           element={
             <PrivateRoute>
-              <h1 style={{ textAlign: 'center', marginTop: 50 }}>
-                🚀 Bienvenido al Dashboard de Vantage
-              </h1>
+              <MainLayout />
             </PrivateRoute>
           }
-        />
+        >
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/backlog" element={<Backlog />} />
+          <Route path="/sprints" element={<Sprints />} />
+        </Route>
         
         {/* Cualquier ruta desconocida va al login */}
         <Route path="*" element={<Navigate to="/login" />} />
