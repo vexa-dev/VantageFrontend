@@ -1,36 +1,39 @@
-import React from 'react';
-import { Button, ConfigProvider, Card, Typography } from 'antd';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import Login from './pages/Login';
+import { useAuthStore } from './store/authStore';
+import type { JSX } from 'react';
 
-const { Title } = Typography;
-
-const App: React.FC = () => {
-  return (
-    <ConfigProvider
-      theme={{
-        token: {
-          colorPrimary: '#00b96b', // Color personalizado (Verde Vantage)
-          borderRadius: 8,
-        },
-      }}
-    >
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '100vh', 
-        backgroundColor: '#f0f2f5' // Fondo gris suave típico de sistemas
-      }}>
-        <Card style={{ width: 400, textAlign: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-          <Title level={2}>Vantage 🚀</Title>
-          <p>Frontend con React + TypeScript + Ant Design</p>
-          <br />
-          <Button type="primary" size="large" onClick={() => alert('¡Funciona!')}>
-            Probar Botón
-          </Button>
-        </Card>
-      </div>
-    </ConfigProvider>
-  );
+// Componente para proteger rutas privadas
+// Si no estás logueado, te patea al Login
+const PrivateRoute = ({ children }: { children: JSX.Element }) => {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  return isAuthenticated ? children : <Navigate to="/login" />;
 };
+
+function App() {
+  return (
+    <BrowserRouter> 
+      <Routes>
+        {/* Ruta Pública */}
+        <Route path="/login" element={<Login />} />
+
+        {/* Ruta Privada (Dashboard) - Por ahora un texto simple */}
+        <Route
+          path="/"
+          element={
+            <PrivateRoute>
+              <h1 style={{ textAlign: 'center', marginTop: 50 }}>
+                🚀 Bienvenido al Dashboard de Vantage
+              </h1>
+            </PrivateRoute>
+          }
+        />
+        
+        {/* Cualquier ruta desconocida va al login */}
+        <Route path="*" element={<Navigate to="/login" />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
 
 export default App;
