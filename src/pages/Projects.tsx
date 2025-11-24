@@ -1,8 +1,32 @@
-import React, { useState, useEffect } from 'react';
-import { Typography, Card, FloatButton, Modal, Form, Input, Select, App, Button, Row, Col, Tag, Space } from 'antd';
-import { PlusOutlined, ProjectOutlined, SearchOutlined } from '@ant-design/icons';
-import { useAuthStore } from '../store/authStore';
-import api from '../services/api';
+import React, { useState, useEffect } from "react";
+import {
+  Typography,
+  Card,
+  FloatButton,
+  Modal,
+  Form,
+  Input,
+  Select,
+  App,
+  Button,
+  Row,
+  Col,
+  Tag,
+  Avatar,
+  Divider,
+  Space,
+  Tooltip,
+} from "antd";
+import {
+  PlusOutlined,
+  ProjectOutlined,
+  SearchOutlined,
+  UserOutlined,
+  TeamOutlined,
+  SafetyCertificateOutlined,
+} from "@ant-design/icons";
+import { useAuthStore } from "../store/authStore";
+import api from "../services/api";
 
 const { Title, Paragraph, Text } = Typography;
 const { Option } = Select;
@@ -17,31 +41,34 @@ const Projects: React.FC = () => {
   const [form] = Form.useForm();
 
   // Filters
-  const [searchText, setSearchText] = useState('');
+  const [searchText, setSearchText] = useState("");
   const [filterSM, setFilterSM] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
 
-  // Check if user is Product Owner
-  const isPO = user?.roles?.some(role => 
-    role === 'PO' || role === 'PRODUCT_OWNER' || role === 'ROLE_PO' || role === 'ROLE_PRODUCT_OWNER'
+  const isPO = user?.roles?.some(
+    (r) =>
+      r === "PO" ||
+      r === "PRODUCT_OWNER" ||
+      r === "ROLE_PO" ||
+      r === "ROLE_PRODUCT_OWNER"
   );
 
   const fetchProjects = async () => {
     try {
-      const response = await api.get('/projects/all');
-      setProjects(response.data);
-    } catch (error) {
-      console.error('Error fetching projects:', error);
-      message.error('Error al cargar proyectos');
+      const res = await api.get("/projects/all");
+      setProjects(res.data);
+    } catch (err) {
+      console.error(err);
+      message.error("Error al cargar proyectos");
     }
   };
 
   const fetchScrumMasters = async () => {
     try {
-      const response = await api.get('/usuarios/role/ROLE_SM');
-      setScrumMasters(response.data);
-    } catch (error) {
-      console.error('Error fetching Scrum Masters:', error);
+      const res = await api.get("/usuarios/role/ROLE_SM");
+      setScrumMasters(res.data);
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -58,66 +85,69 @@ const Projects: React.FC = () => {
   const handleCreateProject = async (values: any) => {
     setLoading(true);
     try {
-      await api.post('/projects', {
+      await api.post("/projects", {
         name: values.name,
         description: values.description,
         icon: values.icon,
-        scrumMasterId: values.scrumMasterId
+        scrumMasterId: values.scrumMasterId,
       });
-      message.success('Proyecto creado exitosamente');
+      message.success("Proyecto creado exitosamente");
       setIsModalVisible(false);
-      fetchProjects(); // Reload projects
-    } catch (error) {
-      console.error('Error creating project:', error);
-      message.error('Error al crear el proyecto');
+      fetchProjects();
+    } catch (err) {
+      console.error(err);
+      message.error("Error al crear el proyecto");
     } finally {
       setLoading(false);
     }
   };
 
-  // Filter Logic
-  const filteredProjects = projects.filter(project => {
-    const matchesSearch = (project.name?.toLowerCase().includes(searchText.toLowerCase()) || 
-                           project.description?.toLowerCase().includes(searchText.toLowerCase()));
-    const matchesSM = filterSM ? project.scrumMaster?.id === filterSM : true;
-    const matchesStatus = filterStatus ? project.status === filterStatus : true;
-    
+  const filteredProjects = projects.filter((p) => {
+    const matchesSearch =
+      p.name?.toLowerCase().includes(searchText.toLowerCase()) ||
+      p.description?.toLowerCase().includes(searchText.toLowerCase());
+    const matchesSM = filterSM ? p.scrumMaster?.id === filterSM : true;
+    const matchesStatus = filterStatus ? p.status === filterStatus : true;
     return matchesSearch && matchesSM && matchesStatus;
   });
 
   return (
-    <div style={{ position: 'relative', minHeight: '80vh', paddingBottom: '60px' }}>
+    <div
+      style={{ position: "relative", minHeight: "80vh", paddingBottom: "60px" }}
+    >
       <Title level={2}>Proyectos</Title>
-      
+
       {/* Filters */}
       <Card style={{ marginBottom: 20 }}>
         <Row gutter={[16, 16]} align="middle">
           <Col xs={24} sm={8}>
-            <Input 
-              prefix={<SearchOutlined />} 
-              placeholder="Buscar por título o descripción" 
+            <Input
+              prefix={<SearchOutlined />}
+              placeholder="Buscar por título o descripción"
               value={searchText}
-              onChange={e => setSearchText(e.target.value)}
+              onChange={(e) => setSearchText(e.target.value)}
             />
           </Col>
           <Col xs={24} sm={6}>
-            <Select 
-              style={{ width: '100%' }} 
+            <Select
+              style={{ width: "100%" }}
               placeholder="Filtrar por Scrum Master"
               allowClear
-              onChange={val => setFilterSM(val)}
+              onChange={(val) => setFilterSM(val)}
             >
-              {scrumMasters.map(sm => (
-                <Option key={sm.id} value={sm.id}>{sm.fullName}</Option>
+              {scrumMasters.map((sm) => (
+                <Option key={sm.id} value={sm.id}>
+                  {sm.fullName}
+                </Option>
               ))}
             </Select>
           </Col>
           <Col xs={24} sm={6}>
-            <Select 
-              style={{ width: '100%' }} 
+            <Select
+              style={{ width: "100%" }}
               placeholder="Estado"
               allowClear
-              onChange={val => setFilterStatus(val)}
+              onChange={(val) => setFilterStatus(val)}
             >
               <Option value="active">Activo</Option>
               <Option value="completed">Completado</Option>
@@ -129,36 +159,163 @@ const Projects: React.FC = () => {
 
       {/* Project Grid */}
       <Row gutter={[16, 16]}>
-        {filteredProjects.map(project => (
-          <Col xs={24} sm={12} md={8} lg={6} key={project.id}>
-            <Card hoverable>
-              <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
-                <div style={{ fontSize: '24px', marginRight: '10px' }}>{project.icon || '🚀'}</div>
-                <Title level={4} style={{ margin: 0 }} ellipsis={{ rows: 1 }}>{project.name}</Title>
+        {filteredProjects.map((project) => (
+          <Col xs={24} sm={12} md={12} lg={8} key={project.id}>
+            <Card
+              hoverable
+              style={{
+                height: "100%",
+                display: "flex",
+                flexDirection: "column",
+              }}
+              // CORRECCIÓN 1: Usar 'styles' en lugar de 'bodyStyle' para Ant Design v5+
+              styles={{
+                body: {
+                  flex: 1,
+                  display: "flex",
+                  flexDirection: "column",
+                  padding: "20px",
+                },
+              }}
+            >
+              {/* --- HEADER: Título y Estado --- */}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
+                  marginBottom: 12,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 10,
+                    alignItems: "center",
+                    overflow: "hidden",
+                  }}
+                >
+                  <Avatar
+                    shape="square"
+                    style={{
+                      backgroundColor: "#f0f5ff",
+                      color: "#1890ff",
+                      minWidth: "32px",
+                    }}
+                  >
+                    {project.icon || "🚀"}
+                  </Avatar>
+                  <Title
+                    level={5}
+                    style={{ margin: 0 }}
+                    ellipsis={{ tooltip: project.name }}
+                  >
+                    {project.name}
+                  </Title>
+                </div>
+
+                <Tag
+                  color={project.status === "active" ? "green" : "default"}
+                  style={{ margin: 0 }}
+                >
+                  {project.status === "active" ? "Activo" : project.status}
+                </Tag>
               </div>
-              
-              <Paragraph ellipsis={{ rows: 2, expandable: false }} style={{ height: '44px', color: '#666' }}>
+
+              {/* --- BODY: Descripción --- */}
+              <Paragraph
+                ellipsis={{ rows: 3, expandable: false, symbol: "..." }}
+                style={{ color: "#666", flex: 1, marginBottom: 16 }}
+              >
                 {project.description}
               </Paragraph>
 
-              <Space style={{ width: '100%', fontSize: '12px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Text type="secondary">Scrum Master:</Text>
-                  <Text strong>{project.scrumMaster?.fullName || 'N/A'}</Text>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Text type="secondary">Product Owner:</Text>
-                  <Text>{project.owner?.fullName}</Text>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                   <Text type="secondary">Estado:</Text>
-                   <Tag color={project.status === 'active' ? 'green' : 'default'}>{project.status}</Tag>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Text type="secondary">Devs:</Text>
-                  <Tag color="blue">{project.members?.length || 0}</Tag>
-                </div>
-              </Space>
+              {/* --- FOOTER: Roles y Devs --- */}
+              <div
+                style={{
+                  marginTop: "auto",
+                  borderTop: "1px solid #f0f0f0",
+                  paddingTop: 12,
+                }}
+              >
+                <Row justify="space-between" align="bottom">
+                  {/* Columna Izquierda: Roles */}
+                  <Col span={18}>
+                    {/* CORRECCIÓN 2: Reemplazo de <Space> por un div flex estándar para evitar warning */}
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "4px",
+                        width: "100%",
+                      }}
+                    >
+                      {/* Product Owner */}
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
+                        <Tooltip title="Product Owner">
+                          <SafetyCertificateOutlined
+                            style={{ color: "#1890ff" }}
+                          />
+                        </Tooltip>
+                        <Text style={{ fontSize: "13px" }} ellipsis>
+                          <Text
+                            type="secondary"
+                            style={{ fontSize: "12px", marginRight: 4 }}
+                          >
+                            PO:
+                          </Text>
+                          {project.owner?.fullName || "Sin asignar"}
+                        </Text>
+                      </div>
+
+                      {/* Scrum Master */}
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
+                        <Tooltip title="Scrum Master">
+                          <UserOutlined style={{ color: "#fa8c16" }} />
+                        </Tooltip>
+                        <Text style={{ fontSize: "13px" }} ellipsis>
+                          <Text
+                            type="secondary"
+                            style={{ fontSize: "12px", marginRight: 4 }}
+                          >
+                            SM:
+                          </Text>
+                          {project.scrumMaster?.fullName || "Sin asignar"}
+                        </Text>
+                      </div>
+                    </div>
+                  </Col>
+
+                  {/* Columna Derecha: Dev Count */}
+                  <Col span={6} style={{ textAlign: "right" }}>
+                    <Tooltip
+                      title={`${
+                        project.members?.length || 0
+                      } Desarrolladores asignados`}
+                    >
+                      <Tag
+                        icon={<TeamOutlined />}
+                        color="blue"
+                        style={{ margin: 0 }}
+                      >
+                        {project.members?.length || 0}
+                      </Tag>
+                    </Tooltip>
+                  </Col>
+                </Row>
+              </div>
             </Card>
           </Col>
         ))}
@@ -182,23 +339,16 @@ const Projects: React.FC = () => {
         onCancel={() => setIsModalVisible(false)}
         footer={null}
         centered
-        styles={{ mask: { backgroundColor: 'rgba(0, 0, 0, 0.6)' } }}
+        styles={{ mask: { backgroundColor: "rgba(0, 0, 0, 0.6)" } }}
       >
         <Form
           form={form}
           layout="vertical"
           onFinish={handleCreateProject}
-          initialValues={{
-            status: 'active',
-            icon: '🚀' // Default icon
-          }}
+          initialValues={{ status: "active", icon: "🚀" }}
         >
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <Form.Item
-              name="icon"
-              label="Icono"
-              style={{ width: '100px' }}
-            >
+          <div style={{ display: "flex", gap: "10px" }}>
+            <Form.Item name="icon" label="Icono" style={{ width: "100px" }}>
               <Select>
                 <Option value="🚀">🚀</Option>
                 <Option value="💻">💻</Option>
@@ -213,17 +363,24 @@ const Projects: React.FC = () => {
             <Form.Item
               name="name"
               label="Título del proyecto"
-              rules={[{ required: true, message: 'Por favor ingresa el título' }]}
+              rules={[
+                { required: true, message: "Por favor ingresa el título" },
+              ]}
               style={{ flex: 1 }}
             >
-              <Input prefix={<ProjectOutlined />} placeholder="Nombre del proyecto" />
+              <Input
+                prefix={<ProjectOutlined />}
+                placeholder="Nombre del proyecto"
+              />
             </Form.Item>
           </div>
 
           <Form.Item
             name="description"
             label="Descripción"
-            rules={[{ required: true, message: 'Por favor ingresa una descripción' }]}
+            rules={[
+              { required: true, message: "Por favor ingresa una descripción" },
+            ]}
           >
             <Input.TextArea rows={4} placeholder="Describe el proyecto..." />
           </Form.Item>
@@ -231,10 +388,15 @@ const Projects: React.FC = () => {
           <Form.Item
             name="scrumMasterId"
             label="Scrum Master"
-            rules={[{ required: true, message: 'Por favor selecciona un Scrum Master' }]}
+            rules={[
+              {
+                required: true,
+                message: "Por favor selecciona un Scrum Master",
+              },
+            ]}
           >
             <Select placeholder="Selecciona un Scrum Master">
-              {scrumMasters.map(sm => (
+              {scrumMasters.map((sm) => (
                 <Option key={sm.id} value={sm.id}>
                   {sm.fullName || sm.email}
                 </Option>
@@ -242,15 +404,15 @@ const Projects: React.FC = () => {
             </Select>
           </Form.Item>
 
-          <Form.Item
-            name="status"
-            label="Estado"
-          >
+          <Form.Item name="status" label="Estado">
             <Input disabled />
           </Form.Item>
 
-          <Form.Item style={{ textAlign: 'right', marginBottom: 0 }}>
-            <Button onClick={() => setIsModalVisible(false)} style={{ marginRight: 8 }}>
+          <Form.Item style={{ textAlign: "right", marginBottom: 0 }}>
+            <Button
+              onClick={() => setIsModalVisible(false)}
+              style={{ marginRight: 8 }}
+            >
               Cancelar
             </Button>
             <Button type="primary" htmlType="submit" loading={loading}>
