@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Typography, Card, Form, Input, Button, message } from 'antd';
-import { UserOutlined, MailOutlined, LockOutlined } from '@ant-design/icons';
+import { UserOutlined, MailOutlined, LockOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import { useAuthStore } from '../store/authStore';
+import { formatRole } from '../utils/roleUtils';
 import api from '../services/api';
 
 const { Title, Text } = Typography;
@@ -58,6 +59,7 @@ const Settings: React.FC = () => {
           initialValues={{
             fullName: user?.email?.split('@')[0] || '', // Placeholder hasta que tengamos fullName
             email: user?.email || '',
+            role: user?.roles?.map(r => formatRole(r)).join(', ') || '',
           }}
         >
           <Form.Item
@@ -77,6 +79,13 @@ const Settings: React.FC = () => {
             ]}
           >
             <Input prefix={<MailOutlined />} placeholder="correo@ejemplo.com" />
+          </Form.Item>
+
+          <Form.Item
+            label="Rol"
+            name="role"
+          >
+            <Input prefix={<SafetyCertificateOutlined />} disabled />
           </Form.Item>
 
           <Form.Item>

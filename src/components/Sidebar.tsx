@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Layout, Menu, Avatar, Dropdown, Typography, Button } from 'antd';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import { formatRole } from '../utils/roleUtils';
 import { 
   UserOutlined, 
   LogoutOutlined, 
@@ -150,7 +151,11 @@ const Sidebar: React.FC = () => {
                <Text strong style={{ display: 'block', fontSize: '12px' }} ellipsis>
                  {user?.email || 'Usuario'}
                </Text>
-               <Text type="secondary" style={{ fontSize: '10px' }}>Admin</Text>
+               <Text type="secondary" style={{ fontSize: '10px' }}>
+                 {user?.roles && user.roles.length > 0 
+                   ? user.roles.map(r => formatRole(r)).join(', ') 
+                   : 'Usuario'}
+               </Text>
             </div>
           )}
         </div>
