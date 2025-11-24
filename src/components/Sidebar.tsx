@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layout, Menu, Avatar, Dropdown, Typography, Button, Tooltip } from 'antd';
+import { Layout, Menu, Avatar, Dropdown, Typography, Button } from 'antd';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { 
@@ -9,7 +9,9 @@ import {
   DashboardOutlined, 
   OrderedListOutlined,
   MenuFoldOutlined,
-  MenuUnfoldOutlined
+  MenuUnfoldOutlined,
+  FolderOutlined,
+  SettingOutlined
 } from '@ant-design/icons';
 
 const { Sider } = Layout;
@@ -36,6 +38,12 @@ const Sidebar: React.FC = () => {
       onClick: () => navigate('/'),
     },
     {
+      key: '/projects',
+      icon: <FolderOutlined />,
+      label: 'Proyectos',
+      onClick: () => navigate('/projects'),
+    },
+    {
       key: '/backlog',
       icon: <OrderedListOutlined />,
       label: 'Backlog',
@@ -51,6 +59,12 @@ const Sidebar: React.FC = () => {
 
   const userMenu = {
     items: [
+      {
+        key: 'settings',
+        icon: <SettingOutlined />,
+        label: 'Configuración',
+        onClick: () => navigate('/settings'),
+      },
       {
         key: 'logout',
         icon: <LogoutOutlined />,
@@ -68,7 +82,6 @@ const Sidebar: React.FC = () => {
       theme="light"
       width={250}
       style={{
-        overflow: 'auto',
         height: '100vh',
         position: 'fixed',
         left: 0,
@@ -76,67 +89,71 @@ const Sidebar: React.FC = () => {
         bottom: 0,
         boxShadow: '2px 0 8px rgba(0,0,0,0.06)',
         zIndex: 1000,
-        display: 'flex',
-        flexDirection: 'column',
       }}
     >
-      {/* --- LOGO AREA --- */}
-      <div style={{ 
-        height: '64px', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: collapsed ? 'center' : 'space-between',
-        padding: collapsed ? '0' : '0 24px',
-        borderBottom: '1px solid #f0f0f0'
-      }}>
-        {!collapsed && (
-          <Text strong style={{ fontSize: '20px', whiteSpace: 'nowrap' }}>
-            Vantage
-          </Text>
-        )}
-        
-        {/* Botón para colapsar/expandir */}
-        <Button 
-          type="text"
-          icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-          onClick={() => setCollapsed(!collapsed)}
-          style={{ fontSize: '16px' }}
-        />
-      </div>
-
-      {/* --- MENU --- */}
-      <Menu
-        mode="inline"
-        selectedKeys={[location.pathname]}
-        items={menuItems}
-        style={{ borderRight: 0, flex: 1, marginTop: '10px' }}
-      />
-
-      {/* --- USER PROFILE AREA (BOTTOM) --- */}
-      <div style={{ 
-        padding: '20px', 
-        borderTop: '1px solid #f0f0f0',
-        display: 'flex',
-        flexDirection: collapsed ? 'column' : 'row',
-        alignItems: 'center',
-        justifyContent: collapsed ? 'center' : 'flex-start',
-        gap: '10px'
-      }}>
-        <Dropdown menu={userMenu} placement="topLeft">
-          <Avatar 
-            style={{ backgroundColor: '#000', cursor: 'pointer', flexShrink: 0 }} 
-            icon={<UserOutlined />} 
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        {/* --- LOGO AREA --- */}
+        <div style={{ 
+          height: '64px', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: collapsed ? 'center' : 'space-between',
+          padding: collapsed ? '0' : '0 24px',
+          borderBottom: '1px solid #f0f0f0',
+          flexShrink: 0,
+        }}>
+          {!collapsed && (
+            <Text strong style={{ fontSize: '20px', whiteSpace: 'nowrap' }}>
+              Vantage
+            </Text>
+          )}
+          
+          {/* Botón para colapsar/expandir */}
+          <Button 
+            type="text"
+            icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+            onClick={() => setCollapsed(!collapsed)}
+            style={{ fontSize: '16px' }}
           />
-        </Dropdown>
-        
-        {!collapsed && (
-          <div style={{ overflow: 'hidden' }}>
-             <Text strong style={{ display: 'block', fontSize: '12px' }} ellipsis>
-               {user?.email || 'Usuario'}
-             </Text>
-             <Text type="secondary" style={{ fontSize: '10px' }}>Admin</Text>
-          </div>
-        )}
+        </div>
+
+        {/* --- MENU --- */}
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', marginTop: '10px' }}>
+          <Menu
+            mode="inline"
+            selectedKeys={[location.pathname]}
+            items={menuItems}
+            style={{ borderRight: 0 }}
+          />
+        </div>
+
+        {/* --- USER PROFILE AREA (BOTTOM) --- */}
+        <div style={{ 
+          padding: '20px', 
+          borderTop: '1px solid #f0f0f0',
+          display: 'flex',
+          flexDirection: collapsed ? 'column' : 'row',
+          alignItems: 'center',
+          justifyContent: collapsed ? 'center' : 'flex-start',
+          gap: '10px',
+          flexShrink: 0,
+        }}>
+          <Dropdown menu={userMenu} placement="topLeft">
+            <Avatar 
+              style={{ backgroundColor: '#000', cursor: 'pointer', flexShrink: 0 }} 
+              icon={<UserOutlined />} 
+            />
+          </Dropdown>
+          
+          {!collapsed && (
+            <div style={{ overflow: 'hidden' }}>
+               <Text strong style={{ display: 'block', fontSize: '12px' }} ellipsis>
+                 {user?.email || 'Usuario'}
+               </Text>
+               <Text type="secondary" style={{ fontSize: '10px' }}>Admin</Text>
+            </div>
+          )}
+        </div>
       </div>
     </Sider>
   );

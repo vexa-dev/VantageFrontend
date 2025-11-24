@@ -1,8 +1,10 @@
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Backlog from './pages/Backlog';
 import Sprints from './pages/Sprints';
+import Projects from './pages/Projects';
+import Settings from './pages/Settings';
 import MainLayout from './components/MainLayout';
 import { useAuthStore } from './store/authStore';
 import type { JSX } from 'react';
@@ -29,8 +31,10 @@ function App() {
           }
         >
           <Route path="/" element={<Dashboard />} />
+          <Route path="/projects" element={<Projects />} />
           <Route path="/backlog" element={<Backlog />} />
           <Route path="/sprints" element={<Sprints />} />
+          <Route path="/settings" element={<Settings />} />
         </Route>
         
         {/* Cualquier ruta desconocida va al login */}
