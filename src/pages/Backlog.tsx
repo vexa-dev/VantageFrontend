@@ -18,7 +18,7 @@ import {
   InputNumber,
   Breadcrumb,
 } from "antd";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   ThunderboltOutlined,
   TrophyOutlined,
@@ -39,14 +39,21 @@ const Backlog: React.FC = () => {
   const { message } = App.useApp();
   const { user } = useAuthStore();
   const navigate = useNavigate();
+  const location = useLocation();
   const [projects, setProjects] = useState<any[]>([]);
+
+  // Initialize from location state if available
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(
-    null
+    location.state?.selectedProjectId || null
   );
 
   // View Mode: 'EPICS' or 'STORIES'
-  const [viewMode, setViewMode] = useState<"EPICS" | "STORIES">("EPICS");
-  const [selectedEpic, setSelectedEpic] = useState<any | null>(null);
+  const [viewMode, setViewMode] = useState<"EPICS" | "STORIES">(
+    location.state?.viewMode || "EPICS"
+  );
+  const [selectedEpic, setSelectedEpic] = useState<any | null>(
+    location.state?.selectedEpic || null
+  );
 
   const [epics, setEpics] = useState<any[]>([]);
   const [stories, setStories] = useState<any[]>([]);
@@ -94,7 +101,8 @@ const Backlog: React.FC = () => {
         const res = await api.get("/projects");
         setProjects(res.data);
         if (res.data.length > 0) {
-          setSelectedProjectId(res.data[0].id);
+          // Only set default if not already set (e.g. from navigation state)
+          setSelectedProjectId((prev) => prev || res.data[0].id);
         }
       } catch (err) {
         console.error(err);
@@ -111,8 +119,17 @@ const Backlog: React.FC = () => {
   useEffect(() => {
     if (selectedProjectId) {
       fetchEpics();
-      setViewMode("EPICS");
-      setSelectedEpic(null);
+
+      // Check if we should preserve state (only if current project matches navigation state)
+      // We use loose equality (==) to handle potential string/number mismatches
+      const shouldPreserveState =
+        location.state?.selectedProjectId == selectedProjectId;
+
+      if (!shouldPreserveState) {
+        // Reset view and selection when project changes (and doesn't match nav state)
+        setViewMode("EPICS");
+        setSelectedEpic(null);
+      }
     }
   }, [selectedProjectId]);
 
@@ -350,6 +367,27 @@ const Backlog: React.FC = () => {
                   (p) => p.id === selectedProjectId
                 );
                 if (!currentProject) return null;
+
+                // Show epic details in STORIES view
+                if (viewMode === "STORIES" && selectedEpic) {
+                  return (
+                    <>
+                      <Text
+                        type="secondary"
+                        style={{ display: "block", marginBottom: 4 }}
+                      >
+                        Proyecto: <Text strong>{currentProject.name}</Text>
+                      </Text>
+                      {selectedEpic.description && (
+                        <Paragraph type="secondary" style={{ marginBottom: 8 }}>
+                          {selectedEpic.description}
+                        </Paragraph>
+                      )}
+                    </>
+                  );
+                }
+
+                // Show project details in EPICS view
                 return (
                   <>
                     <Paragraph type="secondary" style={{ marginBottom: 8 }}>
