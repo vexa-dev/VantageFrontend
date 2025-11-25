@@ -14,7 +14,6 @@ import {
   Tag,
   Avatar,
   Divider,
-  Space,
   Tooltip,
 } from "antd";
 import {
@@ -38,7 +37,11 @@ const Projects: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [projects, setProjects] = useState<any[]>([]);
   const [scrumMasters, setScrumMasters] = useState<any[]>([]);
+  const [developers, setDevelopers] = useState<any[]>([]);
+  const [selectedProject, setSelectedProject] = useState<any | null>(null);
+  const [isDetailsModalVisible, setIsDetailsModalVisible] = useState(false);
   const [form] = Form.useForm();
+  const [assignForm] = Form.useForm();
 
   // Filters
   const [searchText, setSearchText] = useState("");
@@ -51,6 +54,10 @@ const Projects: React.FC = () => {
       r === "PRODUCT_OWNER" ||
       r === "ROLE_PO" ||
       r === "ROLE_PRODUCT_OWNER"
+  );
+
+  const isSM = user?.roles?.some(
+    (r: string) => r === "SM" || r === "SCRUM_MASTER" || r === "ROLE_SM"
   );
 
   const fetchProjects = async () => {
@@ -72,10 +79,28 @@ const Projects: React.FC = () => {
     }
   };
 
+  const fetchDevelopers = async () => {
+    try {
+      const res = await api.get("/usuarios/role/ROLE_DEV");
+      setDevelopers(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
     fetchProjects();
     fetchScrumMasters();
+    fetchDevelopers();
   }, []);
+
+  const getDevMembers = (project: any) => {
+    if (!project?.members) return [];
+    return project.members.filter(
+      (m: any) =>
+        m.id !== project.owner?.id && m.id !== project.scrumMaster?.id
+    );
+  };
 
   const handleOpenModal = () => {
     setIsModalVisible(true);
@@ -97,6 +122,32 @@ const Projects: React.FC = () => {
     } catch (err) {
       console.error(err);
       message.error("Error al crear el proyecto");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCardClick = (project: any) => {
+    setSelectedProject(project);
+    setIsDetailsModalVisible(true);
+    // Pre-fill assigned devs if any
+    // Pre-fill assigned devs if any (excluding PO and SM)
+    const devMembers = getDevMembers(project);
+    const devIds = devMembers.map((m: any) => m.id);
+    assignForm.setFieldsValue({ devIds });
+  };
+
+  const handleAssignDevs = async (values: any) => {
+    if (!selectedProject) return;
+    setLoading(true);
+    try {
+      await api.put(`/projects/${selectedProject.id}/members`, values.devIds);
+      message.success("Desarrolladores asignados exitosamente");
+      setIsDetailsModalVisible(false);
+      fetchProjects(); // Refresh to show new member count
+    } catch (err) {
+      console.error(err);
+      message.error("Error al asignar desarrolladores");
     } finally {
       setLoading(false);
     }
@@ -168,7 +219,6 @@ const Projects: React.FC = () => {
                 display: "flex",
                 flexDirection: "column",
               }}
-              // CORRECCIÓN 1: Usar 'styles' en lugar de 'bodyStyle' para Ant Design v5+
               styles={{
                 body: {
                   flex: 1,
@@ -177,6 +227,7 @@ const Projects: React.FC = () => {
                   padding: "20px",
                 },
               }}
+              onClick={() => handleCardClick(project)}
             >
               {/* --- HEADER: Título y Estado --- */}
               <div
@@ -241,7 +292,6 @@ const Projects: React.FC = () => {
                 <Row justify="space-between" align="bottom">
                   {/* Columna Izquierda: Roles */}
                   <Col span={18}>
-                    {/* CORRECCIÓN 2: Reemplazo de <Space> por un div flex estándar para evitar warning */}
                     <div
                       style={{
                         display: "flex",
@@ -302,7 +352,7 @@ const Projects: React.FC = () => {
                   <Col span={6} style={{ textAlign: "right" }}>
                     <Tooltip
                       title={`${
-                        project.members?.length || 0
+                        getDevMembers(project).length
                       } Desarrolladores asignados`}
                     >
                       <Tag
@@ -310,7 +360,7 @@ const Projects: React.FC = () => {
                         color="blue"
                         style={{ margin: 0 }}
                       >
-                        {project.members?.length || 0}
+                        {getDevMembers(project).length}
                       </Tag>
                     </Tooltip>
                   </Col>
@@ -420,6 +470,104 @@ const Projects: React.FC = () => {
             </Button>
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* Project Details Modal */}
+      <Modal
+        title={
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Avatar
+              shape="square"
+              style={{ backgroundColor: "#f0f5ff", color: "#1890ff" }}
+            >
+              {selectedProject?.icon || "🚀"}
+            </Avatar>
+            <span>{selectedProject?.name}</span>
+            <Tag color={selectedProject?.status === "active" ? "green" : "default"}>
+              {selectedProject?.status === "active" ? "Activo" : selectedProject?.status}
+            </Tag>
+          </div>
+        }
+        open={isDetailsModalVisible}
+        onCancel={() => setIsDetailsModalVisible(false)}
+        footer={null}
+        width={700}
+        centered
+      >
+        <div style={{ marginTop: 20 }}>
+          <Title level={5}>Descripción</Title>
+          <Paragraph style={{ whiteSpace: "pre-wrap" }}>
+            {selectedProject?.description}
+          </Paragraph>
+
+          <Divider />
+
+          <Row gutter={[16, 16]}>
+            <Col span={12}>
+              <Text type="secondary">Product Owner (Creador)</Text>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                <Avatar icon={<SafetyCertificateOutlined />} style={{ backgroundColor: "#1890ff" }} />
+                <Text strong>{selectedProject?.owner?.fullName || "Desconocido"}</Text>
+              </div>
+            </Col>
+            <Col span={12}>
+              <Text type="secondary">Scrum Master</Text>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                <Avatar icon={<UserOutlined />} style={{ backgroundColor: "#fa8c16" }} />
+                <Text strong>{selectedProject?.scrumMaster?.fullName || "Sin asignar"}</Text>
+              </div>
+            </Col>
+          </Row>
+
+          <Divider />
+
+          <Title level={5}>Equipo de Desarrollo</Title>
+          <div style={{ marginBottom: 16 }}>
+            {getDevMembers(selectedProject).length > 0 ? (
+              <Avatar.Group max={{ count: 10 }}>
+                {getDevMembers(selectedProject).map((m: any) => (
+                  <Tooltip key={m.id} title={m.fullName}>
+                    <Avatar style={{ backgroundColor: "#87d068" }}>
+                      {m.fullName?.charAt(0).toUpperCase()}
+                    </Avatar>
+                  </Tooltip>
+                ))}
+              </Avatar.Group>
+            ) : (
+              <Text type="secondary">No hay desarrolladores asignados aún.</Text>
+            )}
+          </div>
+
+          {isSM && (
+            <div style={{ backgroundColor: "#f9f9f9", padding: 16, borderRadius: 8, marginTop: 20 }}>
+              <Title level={5} style={{ marginTop: 0 }}>Asignar Desarrolladores</Title>
+              <Form form={assignForm} layout="vertical" onFinish={handleAssignDevs}>
+                <Form.Item
+                  name="devIds"
+                  label="Selecciona los desarrolladores para este proyecto"
+                >
+                  <Select
+                    mode="multiple"
+                    placeholder="Buscar desarrolladores..."
+                    optionFilterProp="children"
+                    style={{ width: "100%" }}
+                  >
+                    {developers.map((dev) => (
+                      <Option key={dev.id} value={dev.id}>
+                        {dev.fullName || dev.email}
+                      </Option>
+                    ))}
+                  </Select>
+                </Form.Item>
+                <Form.Item style={{ textAlign: "right", marginBottom: 0 }}>
+                  <Button type="primary" htmlType="submit" loading={loading}>
+                    Guardar Asignación
+                  </Button>
+                </Form.Item>
+              </Form>
+            </div>
+          )}
+        </div>
       </Modal>
     </div>
   );
