@@ -18,6 +18,7 @@ import {
   InputNumber,
   Breadcrumb,
 } from "antd";
+import { useNavigate } from "react-router-dom";
 import {
   ThunderboltOutlined,
   TrophyOutlined,
@@ -26,6 +27,7 @@ import {
   ArrowLeftOutlined,
   EditOutlined,
   DeleteOutlined,
+  MinusCircleOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "../store/authStore";
 import api from "../services/api";
@@ -36,6 +38,7 @@ const { Option } = Select;
 const Backlog: React.FC = () => {
   const { message } = App.useApp();
   const { user } = useAuthStore();
+  const navigate = useNavigate();
   const [projects, setProjects] = useState<any[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(
     null
@@ -64,6 +67,13 @@ const Backlog: React.FC = () => {
   const [isEditStoryModalVisible, setIsEditStoryModalVisible] = useState(false);
   const [editingEpic, setEditingEpic] = useState<any | null>(null);
   const [editingStory, setEditingStory] = useState<any | null>(null);
+
+  // Details Modal State
+  const [isStoryDetailsModalVisible, setIsStoryDetailsModalVisible] =
+    useState(false);
+  const [selectedStoryDetails, setSelectedStoryDetails] = useState<any | null>(
+    null
+  );
 
   const [epicForm] = Form.useForm();
   const [storyForm] = Form.useForm();
@@ -263,6 +273,7 @@ const Backlog: React.FC = () => {
       businessValue: story.businessValue,
       urgency: story.urgency,
       storyPoints: story.storyPoints,
+      acceptanceCriteria: story.acceptanceCriteria || [],
     });
     setIsEditStoryModalVisible(true);
   };
@@ -286,6 +297,11 @@ const Backlog: React.FC = () => {
     } finally {
       setCreating(false);
     }
+  };
+
+  const handleOpenStoryDetails = (story: any) => {
+    setSelectedStoryDetails(story);
+    setIsStoryDetailsModalVisible(true);
   };
 
   const handleProjectChange = (value: number) => {
@@ -326,6 +342,47 @@ const Backlog: React.FC = () => {
               ? "Product Backlog (Epics)"
               : `Epic #${selectedEpic?.epicNumber}: ${selectedEpic?.title}`}
           </Title>
+          {/* Project Details Header */}
+          {selectedProjectId && (
+            <div style={{ marginTop: 12, maxWidth: "800px" }}>
+              {(() => {
+                const currentProject = projects.find(
+                  (p) => p.id === selectedProjectId
+                );
+                if (!currentProject) return null;
+                return (
+                  <>
+                    <Paragraph type="secondary" style={{ marginBottom: 8 }}>
+                      {currentProject.description}
+                    </Paragraph>
+                    {(currentProject.startDate || currentProject.endDate) && (
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 16,
+                          fontSize: "13px",
+                          color: "#666",
+                        }}
+                      >
+                        {currentProject.startDate && (
+                          <Text type="secondary">
+                            Inicio:{" "}
+                            <Text strong>{currentProject.startDate}</Text>
+                          </Text>
+                        )}
+                        {currentProject.endDate && (
+                          <Text type="secondary">
+                            Fin (Aprox):{" "}
+                            <Text strong>{currentProject.endDate}</Text>
+                          </Text>
+                        )}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+          )}
         </div>
 
         <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
@@ -492,6 +549,7 @@ const Backlog: React.FC = () => {
               <Col xs={24} sm={12} md={8} lg={6} key={story.id}>
                 <Card
                   hoverable
+                  onClick={() => handleOpenStoryDetails(story)}
                   style={{
                     height: "100%",
                     display: "flex",
@@ -656,7 +714,7 @@ const Backlog: React.FC = () => {
 
           <Form.Item
             name="description"
-            label="Descripción / Criterios de Aceptación"
+            label="Descripción"
             rules={[
               { required: true, message: "Por favor ingresa una descripción" },
             ]}
@@ -664,8 +722,62 @@ const Backlog: React.FC = () => {
             <Input.TextArea rows={4} placeholder="Detalles de la historia..." />
           </Form.Item>
 
+          <Typography.Text strong style={{ display: "block", marginBottom: 8 }}>
+            Criterios de Aceptación
+          </Typography.Text>
+          <Form.List name="acceptanceCriteria">
+            {(fields, { add, remove }) => (
+              <>
+                {fields.map(({ key, name, ...restField }) => (
+                  <Form.Item
+                    required={false}
+                    key={key}
+                    style={{ marginBottom: 12 }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center" }}>
+                      <Form.Item
+                        {...restField}
+                        name={name}
+                        validateTrigger={["onChange", "onBlur"]}
+                        rules={[
+                          {
+                            required: true,
+                            whitespace: true,
+                            message:
+                              "Por favor ingresa un criterio o elimínalo.",
+                          },
+                        ]}
+                        noStyle
+                      >
+                        <Input
+                          placeholder="Criterio de aceptación"
+                          style={{ width: "90%" }}
+                        />
+                      </Form.Item>
+                      <MinusCircleOutlined
+                        className="dynamic-delete-button"
+                        onClick={() => remove(name)}
+                        style={{ marginLeft: 8, color: "red" }}
+                      />
+                    </div>
+                  </Form.Item>
+                ))}
+                <Form.Item>
+                  <Button
+                    type="dashed"
+                    onClick={() => add()}
+                    style={{ width: "100%" }}
+                    icon={<PlusOutlined />}
+                  >
+                    Añadir Criterio
+                  </Button>
+                </Form.Item>
+              </>
+            )}
+          </Form.List>
+
           <Row gutter={16}>
-            <Col span={8}>
+            <Col span={12}>
               <Form.Item
                 name="businessValue"
                 label="Valor Negocio"
@@ -674,20 +786,9 @@ const Backlog: React.FC = () => {
                 <InputNumber min={0} max={100} style={{ width: "100%" }} />
               </Form.Item>
             </Col>
-            <Col span={8}>
+            <Col span={12}>
               <Form.Item name="urgency" label="Urgencia" tooltip="0-100">
                 <InputNumber min={0} max={100} style={{ width: "100%" }} />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item name="storyPoints" label="Puntos" tooltip="Fibonacci">
-                <Select>
-                  {[1, 2, 3, 5, 8, 13, 21].map((p) => (
-                    <Option key={p} value={p}>
-                      {p}
-                    </Option>
-                  ))}
-                </Select>
               </Form.Item>
             </Col>
           </Row>
@@ -766,13 +867,67 @@ const Backlog: React.FC = () => {
 
           <Form.Item
             name="description"
-            label="Descripción / Criterios de Aceptación"
+            label="Descripción"
             rules={[
               { required: true, message: "Por favor ingresa una descripción" },
             ]}
           >
             <Input.TextArea rows={4} placeholder="Detalles de la historia..." />
           </Form.Item>
+
+          <Typography.Text strong style={{ display: "block", marginBottom: 8 }}>
+            Criterios de Aceptación
+          </Typography.Text>
+          <Form.List name="acceptanceCriteria">
+            {(fields, { add, remove }) => (
+              <>
+                {fields.map(({ key, name, ...restField }) => (
+                  <Form.Item
+                    required={false}
+                    key={key}
+                    style={{ marginBottom: 12 }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center" }}>
+                      <Form.Item
+                        {...restField}
+                        name={name}
+                        validateTrigger={["onChange", "onBlur"]}
+                        rules={[
+                          {
+                            required: true,
+                            whitespace: true,
+                            message:
+                              "Por favor ingresa un criterio o elimínalo.",
+                          },
+                        ]}
+                        noStyle
+                      >
+                        <Input
+                          placeholder="Criterio de aceptación"
+                          style={{ width: "90%" }}
+                        />
+                      </Form.Item>
+                      <MinusCircleOutlined
+                        className="dynamic-delete-button"
+                        onClick={() => remove(name)}
+                        style={{ marginLeft: 8, color: "red" }}
+                      />
+                    </div>
+                  </Form.Item>
+                ))}
+                <Form.Item>
+                  <Button
+                    type="dashed"
+                    onClick={() => add()}
+                    style={{ width: "100%" }}
+                    icon={<PlusOutlined />}
+                  >
+                    Añadir Criterio
+                  </Button>
+                </Form.Item>
+              </>
+            )}
+          </Form.List>
 
           <Row gutter={16}>
             <Col span={8}>
@@ -791,7 +946,7 @@ const Backlog: React.FC = () => {
             </Col>
             <Col span={8}>
               <Form.Item name="storyPoints" label="Puntos" tooltip="Fibonacci">
-                <Select>
+                <Select disabled={isPO}>
                   {[1, 2, 3, 5, 8, 13, 21].map((p) => (
                     <Option key={p} value={p}>
                       {p}
@@ -814,6 +969,160 @@ const Backlog: React.FC = () => {
             </Button>
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* Story Details Modal */}
+      <Modal
+        title={
+          selectedStoryDetails ? (
+            <span>
+              <Tag color="blue">#{selectedStoryDetails.storyNumber}</Tag>{" "}
+              {selectedStoryDetails.title}
+            </span>
+          ) : (
+            "Detalles de la Historia"
+          )
+        }
+        open={isStoryDetailsModalVisible}
+        onCancel={() => setIsStoryDetailsModalVisible(false)}
+        footer={[
+          <Button
+            key="issues"
+            type="primary"
+            onClick={() => {
+              setIsStoryDetailsModalVisible(false);
+              navigate(`/issues/${selectedStoryDetails?.id}`);
+            }}
+          >
+            Ver Issues
+          </Button>,
+          <Button
+            key="close"
+            onClick={() => setIsStoryDetailsModalVisible(false)}
+          >
+            Cerrar
+          </Button>,
+        ]}
+        width={700}
+        centered
+      >
+        {selectedStoryDetails && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div>
+              <Text type="secondary">Estado</Text>
+              <div>
+                <Tag
+                  color={
+                    selectedStoryDetails.status === "DONE" ? "green" : "default"
+                  }
+                >
+                  {selectedStoryDetails.status}
+                </Tag>
+              </div>
+            </div>
+
+            <div>
+              <Text type="secondary">Descripción</Text>
+              <Paragraph
+                style={{
+                  backgroundColor: "#f5f5f5",
+                  padding: 12,
+                  borderRadius: 6,
+                  marginTop: 4,
+                }}
+              >
+                {selectedStoryDetails.description}
+              </Paragraph>
+            </div>
+
+            <div>
+              <Text type="secondary">Criterios de Aceptación</Text>
+              {selectedStoryDetails.acceptanceCriteria &&
+              selectedStoryDetails.acceptanceCriteria.length > 0 ? (
+                <ul style={{ marginTop: 4, paddingLeft: 20 }}>
+                  {selectedStoryDetails.acceptanceCriteria.map(
+                    (criteria: string, index: number) => (
+                      <li key={index}>{criteria}</li>
+                    )
+                  )}
+                </ul>
+              ) : (
+                <Paragraph type="secondary" style={{ fontStyle: "italic" }}>
+                  No hay criterios definidos.
+                </Paragraph>
+              )}
+            </div>
+
+            <Row gutter={16} style={{ marginTop: 8 }}>
+              <Col span={8}>
+                <Card size="small" title="Story Points">
+                  <div
+                    style={{
+                      textAlign: "center",
+                      fontSize: 24,
+                      color: "#722ed1",
+                    }}
+                  >
+                    {selectedStoryDetails.storyPoints}
+                  </div>
+                </Card>
+              </Col>
+              <Col span={8}>
+                <Card size="small" title="Valor de Negocio">
+                  <div
+                    style={{
+                      textAlign: "center",
+                      fontSize: 24,
+                      color: "#1890ff",
+                    }}
+                  >
+                    {selectedStoryDetails.businessValue}
+                  </div>
+                </Card>
+              </Col>
+              <Col span={8}>
+                <Card size="small" title="Urgencia">
+                  <div
+                    style={{
+                      textAlign: "center",
+                      fontSize: 24,
+                      color: "#faad14",
+                    }}
+                  >
+                    {selectedStoryDetails.urgency}
+                  </div>
+                </Card>
+              </Col>
+            </Row>
+
+            <div
+              style={{
+                marginTop: 16,
+                paddingTop: 16,
+                borderTop: "1px solid #f0f0f0",
+                fontSize: 12,
+                color: "#999",
+              }}
+            >
+              <Row>
+                <Col span={12}>
+                  Creado por:{" "}
+                  <Text strong>
+                    {selectedStoryDetails.reporter?.fullName || "Desconocido"}
+                  </Text>
+                </Col>
+                <Col span={12} style={{ textAlign: "right" }}>
+                  Creado:{" "}
+                  <Text strong>
+                    {new Date(
+                      selectedStoryDetails.createdAt
+                    ).toLocaleDateString()}
+                  </Text>
+                </Col>
+              </Row>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

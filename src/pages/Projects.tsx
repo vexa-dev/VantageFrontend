@@ -15,6 +15,7 @@ import {
   Avatar,
   Divider,
   Tooltip,
+  DatePicker,
 } from "antd";
 import {
   PlusOutlined,
@@ -23,9 +24,11 @@ import {
   UserOutlined,
   TeamOutlined,
   SafetyCertificateOutlined,
+  EditOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "../store/authStore";
 import api from "../services/api";
+import dayjs from "dayjs";
 
 const { Title, Paragraph, Text } = Typography;
 const { Option } = Select;
@@ -40,7 +43,9 @@ const Projects: React.FC = () => {
   const [developers, setDevelopers] = useState<any[]>([]);
   const [selectedProject, setSelectedProject] = useState<any | null>(null);
   const [isDetailsModalVisible, setIsDetailsModalVisible] = useState(false);
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [form] = Form.useForm();
+  const [editForm] = Form.useForm();
   const [assignForm] = Form.useForm();
 
   // Filters
@@ -49,7 +54,7 @@ const Projects: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
 
   const isPO = user?.roles?.some(
-    (r) =>
+    (r: string) =>
       r === "PO" ||
       r === "PRODUCT_OWNER" ||
       r === "ROLE_PO" ||
@@ -97,8 +102,7 @@ const Projects: React.FC = () => {
   const getDevMembers = (project: any) => {
     if (!project?.members) return [];
     return project.members.filter(
-      (m: any) =>
-        m.id !== project.owner?.id && m.id !== project.scrumMaster?.id
+      (m: any) => m.id !== project.owner?.id && m.id !== project.scrumMaster?.id
     );
   };
 
@@ -115,6 +119,10 @@ const Projects: React.FC = () => {
         description: values.description,
         icon: values.icon,
         scrumMasterId: values.scrumMasterId,
+        startDate: values.startDate
+          ? values.startDate.format("YYYY-MM-DD")
+          : null,
+        endDate: values.endDate ? values.endDate.format("YYYY-MM-DD") : null,
       });
       message.success("Proyecto creado exitosamente");
       setIsModalVisible(false);
@@ -131,10 +139,11 @@ const Projects: React.FC = () => {
     setSelectedProject(project);
     setIsDetailsModalVisible(true);
     // Pre-fill assigned devs if any
-    // Pre-fill assigned devs if any (excluding PO and SM)
     const devMembers = getDevMembers(project);
     const devIds = devMembers.map((m: any) => m.id);
-    assignForm.setFieldsValue({ devIds });
+    if (isSM) {
+      assignForm.setFieldsValue({ devIds });
+    }
   };
 
   const handleAssignDevs = async (values: any) => {
@@ -148,6 +157,55 @@ const Projects: React.FC = () => {
     } catch (err) {
       console.error(err);
       message.error("Error al asignar desarrolladores");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openEditModal = (project: any) => {
+    setSelectedProject(project);
+    editForm.setFieldsValue({
+      name: project.name,
+      description: project.description,
+      icon: project.icon,
+      status: project.status,
+      scrumMasterId: project.scrumMaster?.id,
+      startDate: project.startDate ? dayjs(project.startDate) : null,
+      endDate: project.endDate ? dayjs(project.endDate) : null,
+    });
+    setIsEditModalVisible(true);
+  };
+
+  const handleEditProject = async (values: any) => {
+    if (!selectedProject) return;
+    setLoading(true);
+    try {
+      await api.put(`/projects/${selectedProject.id}`, {
+        ...values,
+        startDate: values.startDate
+          ? values.startDate.format("YYYY-MM-DD")
+          : null,
+        endDate: values.endDate ? values.endDate.format("YYYY-MM-DD") : null,
+        // We need to pass the full object or backend logic to handle partial updates,
+        // but for now we are updating specific fields.
+        // The backend updateProject expects a Project object.
+        // We need to ensure we send the SM object if we want to update it,
+        // but the backend logic for SM update in updateProject uses projectDetails.getScrumMaster()
+        // which comes from the request body.
+        // Let's adjust the backend or send the SM object here.
+        // Actually, the backend updateProject logic:
+        // if (projectDetails.getScrumMaster() != null) { ... }
+        // So we need to send { scrumMaster: { id: values.scrumMasterId } } if we want to update it.
+        // However, the form gives us scrumMasterId.
+        // Let's construct the object properly.
+        scrumMaster: values.scrumMasterId ? { id: values.scrumMasterId } : null,
+      });
+      message.success("Proyecto actualizado exitosamente");
+      setIsEditModalVisible(false);
+      fetchProjects();
+    } catch (err) {
+      console.error(err);
+      message.error("Error al actualizar el proyecto");
     } finally {
       setLoading(false);
     }
@@ -265,12 +323,25 @@ const Projects: React.FC = () => {
                   </Title>
                 </div>
 
-                <Tag
-                  color={project.status === "active" ? "green" : "default"}
-                  style={{ margin: 0 }}
-                >
-                  {project.status === "active" ? "Activo" : project.status}
-                </Tag>
+                <div style={{ display: "flex", gap: 4 }}>
+                  {isPO && (
+                    <Button
+                      type="text"
+                      icon={<EditOutlined />}
+                      size="small"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEditModal(project);
+                      }}
+                    />
+                  )}
+                  <Tag
+                    color={project.status === "active" ? "green" : "default"}
+                    style={{ margin: 0 }}
+                  >
+                    {project.status === "active" ? "Activo" : project.status}
+                  </Tag>
+                </div>
               </div>
 
               {/* --- BODY: Descripción --- */}
@@ -280,6 +351,21 @@ const Projects: React.FC = () => {
               >
                 {project.description}
               </Paragraph>
+
+              {/* --- DATES --- */}
+              {(project.startDate || project.endDate) && (
+                <div
+                  style={{ marginBottom: 12, fontSize: "12px", color: "#888" }}
+                >
+                  {project.startDate && (
+                    <span>Inicio: {project.startDate}</span>
+                  )}
+                  {project.startDate && project.endDate && (
+                    <span style={{ margin: "0 8px" }}>|</span>
+                  )}
+                  {project.endDate && <span>Fin: {project.endDate}</span>}
+                </div>
+              )}
 
               {/* --- FOOTER: Roles y Devs --- */}
               <div
@@ -435,6 +521,19 @@ const Projects: React.FC = () => {
             <Input.TextArea rows={4} placeholder="Describe el proyecto..." />
           </Form.Item>
 
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="startDate" label="Fecha Inicio">
+                <DatePicker style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="endDate" label="Fecha Fin (Aprox)">
+                <DatePicker style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+          </Row>
+
           <Form.Item
             name="scrumMasterId"
             label="Scrum Master"
@@ -472,6 +571,107 @@ const Projects: React.FC = () => {
         </Form>
       </Modal>
 
+      {/* Edit Project Modal */}
+      <Modal
+        title="Editar Proyecto"
+        open={isEditModalVisible}
+        onCancel={() => setIsEditModalVisible(false)}
+        footer={null}
+        centered
+      >
+        <Form form={editForm} layout="vertical" onFinish={handleEditProject}>
+          <div style={{ display: "flex", gap: "10px" }}>
+            <Form.Item name="icon" label="Icono" style={{ width: "100px" }}>
+              <Select>
+                <Option value="🚀">🚀</Option>
+                <Option value="💻">💻</Option>
+                <Option value="📱">📱</Option>
+                <Option value="🌐">🌐</Option>
+                <Option value="🎨">🎨</Option>
+                <Option value="📊">📊</Option>
+                <Option value="🛒">🛒</Option>
+                <Option value="🎮">🎮</Option>
+              </Select>
+            </Form.Item>
+            <Form.Item
+              name="name"
+              label="Título del proyecto"
+              rules={[
+                { required: true, message: "Por favor ingresa el título" },
+              ]}
+              style={{ flex: 1 }}
+            >
+              <Input
+                prefix={<ProjectOutlined />}
+                placeholder="Nombre del proyecto"
+              />
+            </Form.Item>
+          </div>
+
+          <Form.Item
+            name="description"
+            label="Descripción"
+            rules={[
+              { required: true, message: "Por favor ingresa una descripción" },
+            ]}
+          >
+            <Input.TextArea rows={4} placeholder="Describe el proyecto..." />
+          </Form.Item>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="startDate" label="Fecha Inicio">
+                <DatePicker style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="endDate" label="Fecha Fin (Aprox)">
+                <DatePicker style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Form.Item
+            name="scrumMasterId"
+            label="Scrum Master"
+            rules={[
+              {
+                required: true,
+                message: "Por favor selecciona un Scrum Master",
+              },
+            ]}
+          >
+            <Select placeholder="Selecciona un Scrum Master">
+              {scrumMasters.map((sm) => (
+                <Option key={sm.id} value={sm.id}>
+                  {sm.fullName || sm.email}
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          <Form.Item name="status" label="Estado">
+            <Select>
+              <Option value="active">Activo</Option>
+              <Option value="completed">Completado</Option>
+              <Option value="archived">Archivado</Option>
+            </Select>
+          </Form.Item>
+
+          <Form.Item style={{ textAlign: "right", marginBottom: 0 }}>
+            <Button
+              onClick={() => setIsEditModalVisible(false)}
+              style={{ marginRight: 8 }}
+            >
+              Cancelar
+            </Button>
+            <Button type="primary" htmlType="submit" loading={loading}>
+              Actualizar Proyecto
+            </Button>
+          </Form.Item>
+        </Form>
+      </Modal>
+
       {/* Project Details Modal */}
       <Modal
         title={
@@ -483,8 +683,12 @@ const Projects: React.FC = () => {
               {selectedProject?.icon || "🚀"}
             </Avatar>
             <span>{selectedProject?.name}</span>
-            <Tag color={selectedProject?.status === "active" ? "green" : "default"}>
-              {selectedProject?.status === "active" ? "Activo" : selectedProject?.status}
+            <Tag
+              color={selectedProject?.status === "active" ? "green" : "default"}
+            >
+              {selectedProject?.status === "active"
+                ? "Activo"
+                : selectedProject?.status}
             </Tag>
           </div>
         }
@@ -500,21 +704,76 @@ const Projects: React.FC = () => {
             {selectedProject?.description}
           </Paragraph>
 
+          {/* Dates in Details */}
+          {(selectedProject?.startDate || selectedProject?.endDate) && (
+            <div
+              style={{
+                marginBottom: 16,
+                backgroundColor: "#f9f9f9",
+                padding: 10,
+                borderRadius: 6,
+              }}
+            >
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Text type="secondary">Fecha de Inicio:</Text>
+                  <div>
+                    <Text strong>
+                      {selectedProject?.startDate || "No definida"}
+                    </Text>
+                  </div>
+                </Col>
+                <Col span={12}>
+                  <Text type="secondary">Fecha de Fin (Aprox):</Text>
+                  <div>
+                    <Text strong>
+                      {selectedProject?.endDate || "No definida"}
+                    </Text>
+                  </div>
+                </Col>
+              </Row>
+            </div>
+          )}
+
           <Divider />
 
           <Row gutter={[16, 16]}>
             <Col span={12}>
               <Text type="secondary">Product Owner (Creador)</Text>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-                <Avatar icon={<SafetyCertificateOutlined />} style={{ backgroundColor: "#1890ff" }} />
-                <Text strong>{selectedProject?.owner?.fullName || "Desconocido"}</Text>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  marginTop: 4,
+                }}
+              >
+                <Avatar
+                  icon={<SafetyCertificateOutlined />}
+                  style={{ backgroundColor: "#1890ff" }}
+                />
+                <Text strong>
+                  {selectedProject?.owner?.fullName || "Desconocido"}
+                </Text>
               </div>
             </Col>
             <Col span={12}>
               <Text type="secondary">Scrum Master</Text>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-                <Avatar icon={<UserOutlined />} style={{ backgroundColor: "#fa8c16" }} />
-                <Text strong>{selectedProject?.scrumMaster?.fullName || "Sin asignar"}</Text>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  marginTop: 4,
+                }}
+              >
+                <Avatar
+                  icon={<UserOutlined />}
+                  style={{ backgroundColor: "#fa8c16" }}
+                />
+                <Text strong>
+                  {selectedProject?.scrumMaster?.fullName || "Sin asignar"}
+                </Text>
               </div>
             </Col>
           </Row>
@@ -534,14 +793,29 @@ const Projects: React.FC = () => {
                 ))}
               </Avatar.Group>
             ) : (
-              <Text type="secondary">No hay desarrolladores asignados aún.</Text>
+              <Text type="secondary">
+                No hay desarrolladores asignados aún.
+              </Text>
             )}
           </div>
 
           {isSM && (
-            <div style={{ backgroundColor: "#f9f9f9", padding: 16, borderRadius: 8, marginTop: 20 }}>
-              <Title level={5} style={{ marginTop: 0 }}>Asignar Desarrolladores</Title>
-              <Form form={assignForm} layout="vertical" onFinish={handleAssignDevs}>
+            <div
+              style={{
+                backgroundColor: "#f9f9f9",
+                padding: 16,
+                borderRadius: 8,
+                marginTop: 20,
+              }}
+            >
+              <Title level={5} style={{ marginTop: 0 }}>
+                Asignar Desarrolladores
+              </Title>
+              <Form
+                form={assignForm}
+                layout="vertical"
+                onFinish={handleAssignDevs}
+              >
                 <Form.Item
                   name="devIds"
                   label="Selecciona los desarrolladores para este proyecto"
