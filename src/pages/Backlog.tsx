@@ -346,11 +346,37 @@ const Backlog: React.FC = () => {
             items={[
               { title: "Backlog" },
               {
-                title:
-                  viewMode === "STORIES" && selectedEpic
-                    ? `Epic #${selectedEpic.epicNumber}`
-                    : "Epics",
+                title: (() => {
+                  const project = projects.find(
+                    (p) => p.id === selectedProjectId
+                  );
+                  return project ? (
+                    <span
+                      style={{
+                        cursor: viewMode === "STORIES" ? "pointer" : "default",
+                        color: viewMode === "STORIES" ? "#1890ff" : "inherit",
+                      }}
+                      onClick={() => {
+                        if (viewMode === "STORIES") {
+                          setViewMode("EPICS");
+                          setSelectedEpic(null);
+                        }
+                      }}
+                    >
+                      {project.name}
+                    </span>
+                  ) : (
+                    "Selecciona Proyecto"
+                  );
+                })(),
               },
+              ...(viewMode === "STORIES" && selectedEpic
+                ? [
+                    {
+                      title: `Epic #${selectedEpic.epicNumber}: ${selectedEpic.title}`,
+                    },
+                  ]
+                : []),
             ]}
             style={{ marginBottom: 8 }}
           />

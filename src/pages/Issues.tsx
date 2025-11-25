@@ -279,7 +279,35 @@ const Issues: React.FC = () => {
             title: (
               <a
                 onClick={() => {
-                  if (storyDetails) {
+                  navigate("/backlog");
+                }}
+              >
+                Backlog
+              </a>
+            ),
+          },
+          {
+            title: (
+              <a
+                onClick={() => {
+                  if (storyDetails?.project) {
+                    navigate("/backlog", {
+                      state: {
+                        selectedProjectId: storyDetails.project.id,
+                      },
+                    });
+                  }
+                }}
+              >
+                {storyDetails?.project?.name || "Proyecto"}
+              </a>
+            ),
+          },
+          {
+            title: (
+              <a
+                onClick={() => {
+                  if (storyDetails?.epic) {
                     navigate("/backlog", {
                       state: {
                         viewMode: "STORIES",
@@ -287,16 +315,14 @@ const Issues: React.FC = () => {
                         selectedProjectId: storyDetails.project?.id,
                       },
                     });
-                  } else {
-                    navigate("/backlog");
                   }
                 }}
               >
-                Backlog
+                {storyDetails?.epic?.title || "Épica"}
               </a>
             ),
           },
-          { title: "Issues" },
+          { title: storyDetails?.title || "Issues" },
         ]}
         style={{ marginBottom: 16 }}
       />
