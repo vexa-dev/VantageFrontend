@@ -24,6 +24,8 @@ import {
   PlusOutlined,
   ProjectOutlined,
   ArrowLeftOutlined,
+  EditOutlined,
+  DeleteOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "../store/authStore";
 import api from "../services/api";
@@ -56,6 +58,12 @@ const Backlog: React.FC = () => {
   const [isCreateStoryModalVisible, setIsCreateStoryModalVisible] =
     useState(false);
   const [creating, setCreating] = useState(false);
+
+  // Edit Modal States
+  const [isEditEpicModalVisible, setIsEditEpicModalVisible] = useState(false);
+  const [isEditStoryModalVisible, setIsEditStoryModalVisible] = useState(false);
+  const [editingEpic, setEditingEpic] = useState<any | null>(null);
+  const [editingStory, setEditingStory] = useState<any | null>(null);
 
   const [epicForm] = Form.useForm();
   const [storyForm] = Form.useForm();
@@ -172,6 +180,109 @@ const Backlog: React.FC = () => {
     } catch (err) {
       console.error(err);
       message.error("Error al crear la historia");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleDeleteEpic = async (epicId: number) => {
+    Modal.confirm({
+      title: "¿Estás seguro de eliminar esta épica?",
+      content:
+        "Esta acción no se puede deshacer y eliminará todas las historias asociadas.",
+      okText: "Sí, eliminar",
+      okType: "danger",
+      cancelText: "Cancelar",
+      onOk: async () => {
+        try {
+          await api.delete(`/epics/${epicId}`);
+          message.success("Épica eliminada");
+          fetchEpics();
+        } catch (err) {
+          console.error(err);
+          message.error("Error al eliminar la épica");
+        }
+      },
+    });
+  };
+
+  const handleDeleteStory = async (storyId: number) => {
+    Modal.confirm({
+      title: "¿Estás seguro de eliminar esta historia?",
+      content: "Esta acción no se puede deshacer.",
+      okText: "Sí, eliminar",
+      okType: "danger",
+      cancelText: "Cancelar",
+      onOk: async () => {
+        try {
+          await api.delete(`/stories/${storyId}`);
+          message.success("Historia eliminada");
+          fetchStories();
+        } catch (err) {
+          console.error(err);
+          message.error("Error al eliminar la historia");
+        }
+      },
+    });
+  };
+
+  const openEditEpicModal = (epic: any) => {
+    setEditingEpic(epic);
+    epicForm.setFieldsValue({
+      title: epic.title,
+      description: epic.description,
+    });
+    setIsEditEpicModalVisible(true);
+  };
+
+  const handleEditEpic = async (values: any) => {
+    if (!editingEpic) return;
+    setCreating(true);
+    try {
+      await api.put(`/epics/${editingEpic.id}`, {
+        ...values,
+        projectId: selectedProjectId,
+      });
+      message.success("Épica actualizada");
+      setIsEditEpicModalVisible(false);
+      setEditingEpic(null);
+      fetchEpics();
+    } catch (err) {
+      console.error(err);
+      message.error("Error al actualizar la épica");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const openEditStoryModal = (story: any) => {
+    setEditingStory(story);
+    storyForm.setFieldsValue({
+      title: story.title,
+      description: story.description,
+      businessValue: story.businessValue,
+      urgency: story.urgency,
+      storyPoints: story.storyPoints,
+    });
+    setIsEditStoryModalVisible(true);
+  };
+
+  const handleEditStory = async (values: any) => {
+    if (!editingStory) return;
+    setCreating(true);
+    try {
+      await api.put(`/stories/${editingStory.id}`, {
+        ...values,
+        projectId: selectedProjectId,
+        epicId: selectedEpic?.id,
+      });
+      message.success("Historia actualizada");
+      setIsEditStoryModalVisible(false);
+      setEditingStory(null);
+      fetchStories();
+    } catch (err) {
+      console.error(err);
+      message.error("Error al actualizar la historia");
     } finally {
       setCreating(false);
     }
@@ -315,7 +426,24 @@ const Backlog: React.FC = () => {
                       }}
                     >
                       <Tag color="purple">Epic #{epic.epicNumber}</Tag>
-                      <Tag color="default">{epic.status}</Tag>
+                      <div onClick={(e) => e.stopPropagation()}>
+                        {isPO && (
+                          <>
+                            <Button
+                              type="text"
+                              icon={<EditOutlined />}
+                              onClick={() => openEditEpicModal(epic)}
+                            />
+                            <Button
+                              type="text"
+                              danger
+                              icon={<DeleteOutlined />}
+                              onClick={() => handleDeleteEpic(epic.id)}
+                            />
+                          </>
+                        )}
+                        <Tag color="default">{epic.status}</Tag>
+                      </div>
                     </div>
                     <Text strong style={{ fontSize: 16 }}>
                       {epic.title}
@@ -382,11 +510,28 @@ const Backlog: React.FC = () => {
                       }}
                     >
                       <Tag color="blue">#{story.storyNumber}</Tag>
-                      <Tag
-                        color={story.status === "DONE" ? "green" : "default"}
-                      >
-                        {story.status}
-                      </Tag>
+                      <div onClick={(e) => e.stopPropagation()}>
+                        {isPO && (
+                          <>
+                            <Button
+                              type="text"
+                              icon={<EditOutlined />}
+                              onClick={() => openEditStoryModal(story)}
+                            />
+                            <Button
+                              type="text"
+                              danger
+                              icon={<DeleteOutlined />}
+                              onClick={() => handleDeleteStory(story.id)}
+                            />
+                          </>
+                        )}
+                        <Tag
+                          color={story.status === "DONE" ? "green" : "default"}
+                        >
+                          {story.status}
+                        </Tag>
+                      </div>
                     </div>
                     <Text strong style={{ fontSize: 16 }}>
                       {story.title}
@@ -556,6 +701,116 @@ const Backlog: React.FC = () => {
             </Button>
             <Button type="primary" htmlType="submit" loading={creating}>
               Crear Historia
+            </Button>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Edit Epic Modal */}
+      <Modal
+        title="Editar Épica"
+        open={isEditEpicModalVisible}
+        onCancel={() => setIsEditEpicModalVisible(false)}
+        footer={null}
+        centered
+      >
+        <Form form={epicForm} layout="vertical" onFinish={handleEditEpic}>
+          <Form.Item
+            name="title"
+            label="Título"
+            rules={[{ required: true, message: "Por favor ingresa el título" }]}
+          >
+            <Input placeholder="Título de la Épica" />
+          </Form.Item>
+
+          <Form.Item
+            name="description"
+            label="Descripción"
+            rules={[
+              { required: true, message: "Por favor ingresa una descripción" },
+            ]}
+          >
+            <Input.TextArea rows={4} placeholder="Descripción de la Épica..." />
+          </Form.Item>
+
+          <Form.Item style={{ textAlign: "right", marginBottom: 0 }}>
+            <Button
+              onClick={() => setIsEditEpicModalVisible(false)}
+              style={{ marginRight: 8 }}
+            >
+              Cancelar
+            </Button>
+            <Button type="primary" htmlType="submit" loading={creating}>
+              Actualizar Épica
+            </Button>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Edit Story Modal */}
+      <Modal
+        title="Editar Historia"
+        open={isEditStoryModalVisible}
+        onCancel={() => setIsEditStoryModalVisible(false)}
+        footer={null}
+        centered
+      >
+        <Form form={storyForm} layout="vertical" onFinish={handleEditStory}>
+          <Form.Item
+            name="title"
+            label="Título"
+            rules={[{ required: true, message: "Por favor ingresa el título" }]}
+          >
+            <Input placeholder="Como usuario quiero..." />
+          </Form.Item>
+
+          <Form.Item
+            name="description"
+            label="Descripción / Criterios de Aceptación"
+            rules={[
+              { required: true, message: "Por favor ingresa una descripción" },
+            ]}
+          >
+            <Input.TextArea rows={4} placeholder="Detalles de la historia..." />
+          </Form.Item>
+
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item
+                name="businessValue"
+                label="Valor Negocio"
+                tooltip="0-100"
+              >
+                <InputNumber min={0} max={100} style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="urgency" label="Urgencia" tooltip="0-100">
+                <InputNumber min={0} max={100} style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="storyPoints" label="Puntos" tooltip="Fibonacci">
+                <Select>
+                  {[1, 2, 3, 5, 8, 13, 21].map((p) => (
+                    <Option key={p} value={p}>
+                      {p}
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Form.Item style={{ textAlign: "right", marginBottom: 0 }}>
+            <Button
+              onClick={() => setIsEditStoryModalVisible(false)}
+              style={{ marginRight: 8 }}
+            >
+              Cancelar
+            </Button>
+            <Button type="primary" htmlType="submit" loading={creating}>
+              Actualizar Historia
             </Button>
           </Form.Item>
         </Form>
