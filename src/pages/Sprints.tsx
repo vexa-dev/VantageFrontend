@@ -602,8 +602,18 @@ const Sprints: React.FC = () => {
                         <Card
                           key={issue.id}
                           size="small"
-                          style={{ width: "100%", cursor: "pointer" }}
-                          hoverable
+                          style={{
+                            width: "100%",
+                            cursor: "pointer",
+                            transition: "border-color 0.3s",
+                            boxShadow: "none",
+                          }}
+                          onMouseEnter={(e) =>
+                            (e.currentTarget.style.borderColor = "#40a9ff")
+                          }
+                          onMouseLeave={(e) =>
+                            (e.currentTarget.style.borderColor = "")
+                          }
                           onClick={() => {
                             setIsDetailsModalVisible(false);
                             if (issue.story?.id) {
