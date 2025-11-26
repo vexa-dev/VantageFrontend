@@ -33,7 +33,7 @@ import {
   Col,
   Button,
 } from "antd";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   ClockCircleOutlined,
   UserOutlined,
@@ -295,10 +295,11 @@ const KanbanBoard: React.FC = () => {
   const { message } = App.useApp();
   const { user } = useAuthStore();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [projects, setProjects] = useState<any[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(
-    null
+    location.state?.selectedProjectId || null
   );
   const [sprints, setSprints] = useState<any[]>([]);
   const [selectedSprintId, setSelectedSprintId] = useState<number | null>(null);
