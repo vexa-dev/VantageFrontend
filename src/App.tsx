@@ -6,6 +6,7 @@ import Sprints from "./pages/Sprints";
 import Projects from "./pages/Projects";
 import Settings from "./pages/Settings";
 import Issues from "./pages/Issues";
+import KanbanBoard from "./pages/KanbanBoard";
 import MainLayout from "./components/MainLayout";
 import { useAuthStore } from "./store/authStore";
 import type { JSX } from "react";
@@ -37,6 +38,7 @@ function App() {
           <Route path="/sprints" element={<Sprints />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/issues/:storyId" element={<Issues />} />
+          <Route path="/kanban" element={<KanbanBoard />} />
         </Route>
 
         {/* Cualquier ruta desconocida va al login */}

@@ -77,7 +77,7 @@ const Projects: React.FC = () => {
 
   const fetchScrumMasters = async () => {
     try {
-      const res = await api.get("/usuarios/role/ROLE_SM");
+      const res = await api.get("/users/role/ROLE_SM");
       setScrumMasters(res.data);
     } catch (err) {
       console.error(err);
@@ -86,7 +86,7 @@ const Projects: React.FC = () => {
 
   const fetchDevelopers = async () => {
     try {
-      const res = await api.get("/usuarios/role/ROLE_DEV");
+      const res = await api.get("/users/role/ROLE_DEV");
       setDevelopers(res.data);
     } catch (err) {
       console.error(err);
