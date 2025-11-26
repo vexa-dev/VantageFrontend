@@ -93,6 +93,10 @@ const Backlog: React.FC = () => {
       r === "ROLE_PRODUCT_OWNER"
   );
 
+  const isSM = user?.roles?.some(
+    (r: string) => r === "SM" || r === "SCRUM_MASTER" || r === "ROLE_SM"
+  );
+
   // Load Projects
   useEffect(() => {
     const fetchProjects = async () => {
@@ -633,19 +637,21 @@ const Backlog: React.FC = () => {
                     >
                       <Tag color="blue">#{story.storyNumber}</Tag>
                       <div onClick={(e) => e.stopPropagation()}>
-                        {isPO && (
+                        {(isPO || isSM) && (
                           <>
                             <Button
                               type="text"
                               icon={<EditOutlined />}
                               onClick={() => openEditStoryModal(story)}
                             />
-                            <Button
-                              type="text"
-                              danger
-                              icon={<DeleteOutlined />}
-                              onClick={() => handleDeleteStory(story.id)}
-                            />
+                            {isPO && (
+                              <Button
+                                type="text"
+                                danger
+                                icon={<DeleteOutlined />}
+                                onClick={() => handleDeleteStory(story.id)}
+                              />
+                            )}
                           </>
                         )}
                         <Tag
@@ -926,7 +932,7 @@ const Backlog: React.FC = () => {
             label="Título"
             rules={[{ required: true, message: "Por favor ingresa el título" }]}
           >
-            <Input placeholder="Como usuario quiero..." />
+            <Input placeholder="Como usuario quiero..." disabled={!isPO} />
           </Form.Item>
 
           <Form.Item
@@ -936,7 +942,11 @@ const Backlog: React.FC = () => {
               { required: true, message: "Por favor ingresa una descripción" },
             ]}
           >
-            <Input.TextArea rows={4} placeholder="Detalles de la historia..." />
+            <Input.TextArea
+              rows={4}
+              placeholder="Detalles de la historia..."
+              disabled={!isPO}
+            />
           </Form.Item>
 
           <Typography.Text strong style={{ display: "block", marginBottom: 8 }}>
@@ -969,26 +979,31 @@ const Backlog: React.FC = () => {
                         <Input
                           placeholder="Criterio de aceptación"
                           style={{ width: "90%" }}
+                          disabled={!isPO}
                         />
                       </Form.Item>
-                      <MinusCircleOutlined
-                        className="dynamic-delete-button"
-                        onClick={() => remove(name)}
-                        style={{ marginLeft: 8, color: "red" }}
-                      />
+                      {isPO && (
+                        <MinusCircleOutlined
+                          className="dynamic-delete-button"
+                          onClick={() => remove(name)}
+                          style={{ marginLeft: 8, color: "red" }}
+                        />
+                      )}
                     </div>
                   </Form.Item>
                 ))}
-                <Form.Item>
-                  <Button
-                    type="dashed"
-                    onClick={() => add()}
-                    style={{ width: "100%" }}
-                    icon={<PlusOutlined />}
-                  >
-                    Añadir Criterio
-                  </Button>
-                </Form.Item>
+                {isPO && (
+                  <Form.Item>
+                    <Button
+                      type="dashed"
+                      onClick={() => add()}
+                      style={{ width: "100%" }}
+                      icon={<PlusOutlined />}
+                    >
+                      Añadir Criterio
+                    </Button>
+                  </Form.Item>
+                )}
               </>
             )}
           </Form.List>
@@ -1000,17 +1015,27 @@ const Backlog: React.FC = () => {
                 label="Valor Negocio"
                 tooltip="0-100"
               >
-                <InputNumber min={0} max={100} style={{ width: "100%" }} />
+                <InputNumber
+                  min={0}
+                  max={100}
+                  style={{ width: "100%" }}
+                  disabled={!isPO}
+                />
               </Form.Item>
             </Col>
             <Col span={8}>
               <Form.Item name="urgency" label="Urgencia" tooltip="0-100">
-                <InputNumber min={0} max={100} style={{ width: "100%" }} />
+                <InputNumber
+                  min={0}
+                  max={100}
+                  style={{ width: "100%" }}
+                  disabled={!isPO}
+                />
               </Form.Item>
             </Col>
             <Col span={8}>
               <Form.Item name="storyPoints" label="Puntos" tooltip="Fibonacci">
-                <Select disabled={isPO}>
+                <Select disabled={!isSM}>
                   {[1, 2, 3, 5, 8, 13, 21].map((p) => (
                     <Option key={p} value={p}>
                       {p}

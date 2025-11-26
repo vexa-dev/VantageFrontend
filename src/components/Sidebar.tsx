@@ -91,12 +91,7 @@ const Sidebar: React.FC = () => {
       width={250}
       style={{
         height: "100vh",
-        position: "fixed",
-        left: 0,
-        top: 0,
-        bottom: 0,
         boxShadow: "2px 0 8px rgba(0,0,0,0.06)",
-        zIndex: 1000,
       }}
     >
       <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>

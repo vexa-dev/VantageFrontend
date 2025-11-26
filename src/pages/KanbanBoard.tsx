@@ -31,7 +31,9 @@ import {
   Divider,
   Row,
   Col,
+  Button,
 } from "antd";
+import { useNavigate } from "react-router-dom";
 import {
   ClockCircleOutlined,
   UserOutlined,
@@ -62,6 +64,10 @@ interface Issue {
   }[];
   timeEstimate?: number;
   category?: string;
+  story?: {
+    id: number;
+    title: string;
+  };
 }
 
 interface Column {
@@ -71,9 +77,9 @@ interface Column {
 }
 
 const COLUMNS: Column[] = [
-  { id: "TO_DO", title: "To Do", color: "#d9d9d9" },
-  { id: "IN_PROGRESS", title: "In Progress", color: "#1890ff" },
-  { id: "BLOCKED", title: "Blocked", color: "#ff4d4f" },
+  { id: "TO_DO", title: "To Do", color: "#597ef7" },
+  { id: "IN_PROGRESS", title: "In Progress", color: "#2f54eb" },
+  // BLOCKED column removed from board view
   { id: "CODE_REVIEW", title: "Code Review", color: "#722ed1" },
   { id: "QA", title: "QA", color: "#faad14" },
   { id: "DONE", title: "Done", color: "#52c41a" },
@@ -111,7 +117,7 @@ const SortableItem = ({
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
-    marginBottom: 8,
+    marginBottom: 10,
   };
 
   return (
@@ -120,28 +126,69 @@ const SortableItem = ({
         size="small"
         style={{
           cursor: isDraggable ? "grab" : "default",
-          boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
-          borderColor: isAssignedToMe ? "#1890ff" : undefined,
-          backgroundColor: isAssignedToMe ? "#e6f7ff" : undefined,
+          boxShadow: isDragging
+            ? "0 5px 15px rgba(0,0,0,0.15)"
+            : "0 1px 3px rgba(0,0,0,0.05)",
+          borderColor: isAssignedToMe ? "#1890ff" : "transparent",
+          backgroundColor: isAssignedToMe ? "#e6f7ff" : "#fff",
+          borderRadius: "8px",
         }}
         hoverable={isDraggable}
         onClick={() => onClick(issue)}
+        variant={isAssignedToMe ? "outlined" : "borderless"}
       >
-        <Text strong>{issue.title}</Text>
+        <div style={{ marginBottom: 8 }}>
+          <Text strong style={{ fontSize: "14px", color: "#1f1f1f" }}>
+            {issue.title}
+          </Text>
+        </div>
+
         <div
           style={{
             display: "flex",
             justifyContent: "space-between",
-            marginTop: 8,
-            alignItems: "center",
+            alignItems: "flex-end",
           }}
         >
-          <Tag>{issue.priority}</Tag>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <Tag
+              style={{
+                marginRight: 0,
+                border: "none",
+                background: "rgba(0,0,0,0.04)",
+                fontWeight: 500,
+                width: "fit-content",
+              }}
+            >
+              {issue.priority}
+            </Tag>
+            {issue.timeEstimate && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                  color: "#8c8c8c",
+                }}
+              >
+                <ClockCircleOutlined style={{ fontSize: "12px" }} />
+                <Text type="secondary" style={{ fontSize: "12px" }}>
+                  {issue.timeEstimate}h
+                </Text>
+              </div>
+            )}
+          </div>
+
           {issue.assignees && issue.assignees.length > 0 && (
             <Avatar.Group max={{ count: 3 }} size="small">
               {issue.assignees.map((assignee, index) => (
                 <Tooltip key={index} title={assignee.fullName}>
-                  <Avatar style={{ backgroundColor: "#87d068" }}>
+                  <Avatar
+                    style={{
+                      backgroundColor: "#87d068",
+                      border: "2px solid #fff",
+                    }}
+                  >
                     {assignee.fullName
                       ? assignee.fullName[0].toUpperCase()
                       : "?"}
@@ -173,21 +220,21 @@ const KanbanColumn = ({
   const { setNodeRef } = useSortable({
     id: column.id,
     data: { type: "Column", column },
-    disabled: true, // Columns themselves shouldn't be draggable in this context
+    disabled: true,
   });
 
   return (
     <div
       ref={setNodeRef}
       style={{
-        background: "#f0f2f5",
-        padding: 16,
-        borderRadius: 8,
-        minWidth: 280,
-        width: 280,
+        background: "#ebecf0",
+        padding: "16px 12px",
+        borderRadius: "12px",
+        minWidth: 260, // Reduced slightly to fit smaller screens without scroll
+        flex: 1, // Allow column to grow and fill space
         display: "flex",
         flexDirection: "column",
-        marginRight: 16,
+        border: "1px solid #dfe1e6",
       }}
     >
       <div
@@ -196,12 +243,33 @@ const KanbanColumn = ({
           alignItems: "center",
           justifyContent: "space-between",
           marginBottom: 16,
+          padding: "0 4px",
         }}
       >
-        <Text strong style={{ textTransform: "uppercase", color: "#595959" }}>
+        <Text
+          strong
+          style={{
+            textTransform: "uppercase",
+            color: column.color,
+            fontSize: "13px",
+            letterSpacing: "0.5px",
+          }}
+        >
           {column.title}
         </Text>
-        <Tag color={column.color}>{issues.length}</Tag>
+        <div
+          style={{
+            backgroundColor: column.color,
+            color: "#fff",
+            borderRadius: "12px",
+            padding: "2px 10px",
+            fontWeight: "bold",
+            fontSize: "12px",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.15)",
+          }}
+        >
+          {issues.length}
+        </div>
       </div>
       <SortableContext
         items={issues.map((i) => i.id)}
@@ -226,6 +294,7 @@ const KanbanColumn = ({
 const KanbanBoard: React.FC = () => {
   const { message } = App.useApp();
   const { user } = useAuthStore();
+  const navigate = useNavigate();
 
   const [projects, setProjects] = useState<any[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(
@@ -283,7 +352,6 @@ const KanbanBoard: React.FC = () => {
       api
         .get(`/sprints/${selectedSprintId}`)
         .then((res) => {
-          // The sprint endpoint returns the sprint object with a list of issues
           if (res.data && res.data.issues) {
             setIssues(res.data.issues);
           } else {
@@ -317,13 +385,9 @@ const KanbanBoard: React.FC = () => {
     const activeId = active.id;
     const overId = over.id;
 
-    // Find the issue being dragged
     const activeIssue = issues.find((i) => i.id === activeId);
     if (!activeIssue) return;
 
-    // Determine the new status
-    // If dropped on a column, overId is the column status (string)
-    // If dropped on another issue, we need to find that issue's status
     let newStatus: IssueStatus | undefined;
 
     const isOverColumn = COLUMNS.some((c) => c.id === overId);
@@ -338,20 +402,17 @@ const KanbanBoard: React.FC = () => {
     }
 
     if (newStatus && newStatus !== activeIssue.status) {
-      // Optimistic Update
       const oldStatus = activeIssue.status;
       setIssues((prev) =>
         prev.map((i) => (i.id === activeId ? { ...i, status: newStatus! } : i))
       );
 
       try {
-        // Use the new PATCH endpoint for status updates
         await api.patch(`/issues/${activeId}/status`, { status: newStatus });
         message.success(`Issue movido a ${newStatus}`);
       } catch (error) {
         console.error(error);
         message.error("Error al actualizar el estado");
-        // Revert
         setIssues((prev) =>
           prev.map((i) => (i.id === activeId ? { ...i, status: oldStatus } : i))
         );
@@ -365,7 +426,7 @@ const KanbanBoard: React.FC = () => {
   return (
     <div
       style={{
-        padding: 24,
+        padding: "16px 24px",
         height: "100%",
         display: "flex",
         flexDirection: "column",
@@ -455,6 +516,7 @@ const KanbanBoard: React.FC = () => {
               overflowX: "auto",
               paddingBottom: 16,
               height: "100%",
+              gap: 16, // Increased gap for better separation
             }}
           >
             {COLUMNS.map((col) => (
@@ -470,7 +532,7 @@ const KanbanBoard: React.FC = () => {
           </div>
           <DragOverlay>
             {activeDragItem ? (
-              <Card size="small" style={{ cursor: "grabbing", width: 280 }}>
+              <Card size="small" style={{ cursor: "grabbing", width: 300 }}>
                 <Text strong>{activeDragItem.title}</Text>
               </Card>
             ) : null}
@@ -482,7 +544,22 @@ const KanbanBoard: React.FC = () => {
         title="Detalles del Issue"
         open={!!selectedIssue}
         onCancel={() => setSelectedIssue(null)}
-        footer={null}
+        footer={[
+          <Button key="close" onClick={() => setSelectedIssue(null)}>
+            Cerrar
+          </Button>,
+          selectedIssue?.story && (
+            <Button
+              key="backlog"
+              type="primary"
+              onClick={() => {
+                navigate(`/issues/${selectedIssue.story?.id}`);
+              }}
+            >
+              Ver en Backlog
+            </Button>
+          ),
+        ]}
       >
         {selectedIssue && (
           <div>
@@ -513,6 +590,12 @@ const KanbanBoard: React.FC = () => {
               <Text type="secondary" style={{ fontSize: 16 }}>
                 {selectedIssue.description || "Sin descripción proporcionada."}
               </Text>
+              {selectedIssue.story && (
+                <div style={{ marginTop: 8 }}>
+                  <Text type="secondary">Historia: </Text>
+                  <Text strong>{selectedIssue.story.title}</Text>
+                </div>
+              )}
             </div>
 
             <Divider />
