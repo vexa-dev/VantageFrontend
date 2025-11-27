@@ -23,7 +23,6 @@ import {
   ThunderboltOutlined,
   TrophyOutlined,
   PlusOutlined,
-  ProjectOutlined,
   ArrowLeftOutlined,
   EditOutlined,
   DeleteOutlined,

@@ -1,4 +1,4 @@
-// Dashboard Component
+// Dashboard Component - Product Owner View
 import React, { useEffect, useState } from "react";
 import {
   Typography,
@@ -12,13 +12,21 @@ import {
   Empty,
   Input,
   Select,
+  Badge,
+  Table,
 } from "antd";
+import type { ColumnsType } from "antd/es/table";
 import {
   ProjectOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
   ThunderboltOutlined,
   TrophyOutlined,
+  RocketOutlined,
+  WarningOutlined,
+  StopOutlined,
+  FundOutlined,
+  FileTextOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "../store/authStore";
 import api from "../services/api";
@@ -31,14 +39,15 @@ interface Project {
   name: string;
   description: string;
   icon: string;
+  owner?: { id: number; email: string };
 }
 
 interface Issue {
   id: number;
   timeEstimate: number;
   status: string;
-  story?: { id: number }; // Added to link issue to story
-  sprint?: { id: number }; // Added to link issue to sprint
+  story?: { id: number };
+  sprint?: { id: number; name: string };
 }
 
 interface Story {
@@ -47,21 +56,10 @@ interface Story {
   storyPoints: number;
   priorityScore: number;
   storyNumber: number;
-  status?: string; // Added for filtering
-  project?: Project; // Added for global view context
-  epic?: { epicNumber: number }; // Added for display
-  issueCount?: number; // Added for SM view
-}
-
-interface Sprint {
-  id: number;
-  name: string;
-  goal: string;
-  startDate: string;
-  endDate: string;
-  active: boolean;
-  issueCount?: number; // Added for SM view
-  totalHours?: number; // Added for SM view
+  status?: string;
+  project?: Project;
+  epic?: { epicNumber: number };
+  sprint?: { id: number; name: string };
 }
 
 interface ProjectStats {
@@ -70,9 +68,15 @@ interface ProjectStats {
   completedHours: number;
   progress: number;
   topStories: Story[];
-  allStories: Story[]; // Added to store all stories
-  activeSprints: Sprint[]; // Added for SM view
-  storiesWithoutIssues: Story[]; // Added for SM view
+  allStories: Story[];
+  unestimatedCount: number;
+}
+
+interface GlobalKPIs {
+  totalProjects: number;
+  backlogHealth: number;
+  overallProgress: number;
+  deliveredValue: number;
 }
 
 const Dashboard: React.FC = () => {
@@ -80,16 +84,22 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
   const [stats, setStats] = useState<Record<number, ProjectStats>>({});
+  const [globalKPIs, setGlobalKPIs] = useState<GlobalKPIs>({
+    totalProjects: 0,
+    backlogHealth: 0,
+    overallProgress: 0,
+    deliveredValue: 0,
+  });
   const [loading, setLoading] = useState(true);
 
   // Filter States
   const [searchText, setSearchText] = useState("");
   const [viewMode, setViewMode] = useState<
-    | "PROJECTS_DEFAULT"
-    | "PROJECTS_PROGRESS_DESC"
-    | "ALL_STORIES_PRIORITY"
-    | "PROJECTS_ALL"
+    "PROJECTS_DEFAULT" | "PROJECTS_PROGRESS_DESC" | "ALL_STORIES_PRIORITY"
   >("PROJECTS_PROGRESS_DESC");
+  const [priorityFilter, setPriorityFilter] = useState<"ALL" | "P1" | "P2">(
+    "ALL"
+  );
 
   const isPO = user?.roles?.some(
     (r: string) =>
@@ -99,17 +109,9 @@ const Dashboard: React.FC = () => {
       r === "ROLE_PRODUCT_OWNER"
   );
 
-  const isSM = user?.roles?.some(
-    (r: string) =>
-      r === "SM" ||
-      r === "SCRUM_MASTER" ||
-      r === "ROLE_SM" ||
-      r === "ROLE_SCRUM_MASTER"
-  );
-
   useEffect(() => {
     const fetchData = async () => {
-      if (!isPO && !isSM) {
+      if (!isPO) {
         setLoading(false);
         return;
       }
@@ -121,6 +123,10 @@ const Dashboard: React.FC = () => {
         setProjects(projectsData);
 
         const newStats: Record<number, ProjectStats> = {};
+        let totalProgressSum = 0;
+        let totalDeliveredPoints = 0;
+        let totalStories = 0;
+        let totalEstimatedStories = 0;
 
         // 2. Fetch Data for each project
         await Promise.all(
@@ -146,13 +152,15 @@ const Dashboard: React.FC = () => {
                   ? Math.round((completedHours / totalHours) * 100)
                   : 0;
 
-              // Fetch Backlog for Top Stories
+              totalProgressSum += progress;
+
+              // Fetch Backlog for Stories
               const backlogRes = await api.get(
                 `/stories/backlog/${project.id}`
               );
               const backlog: Story[] = backlogRes.data.map((s: Story) => ({
                 ...s,
-                project: project, // Attach project info for global view
+                project: project,
               }));
 
               // Sort by priorityScore descending
@@ -160,29 +168,14 @@ const Dashboard: React.FC = () => {
                 (a, b) => (b.priorityScore || 0) - (a.priorityScore || 0)
               );
 
-              // Identify completed stories (all issues DONE)
+              // Identify completed stories (status DONE)
               const issuesByStory: Record<number, Issue[]> = {};
-              const sprintMetrics: Record<
-                number,
-                { count: number; hours: number }
-              > = {};
-
               issues.forEach((i) => {
-                // Group by Story
                 if (i.story?.id) {
                   if (!issuesByStory[i.story.id]) {
                     issuesByStory[i.story.id] = [];
                   }
                   issuesByStory[i.story.id].push(i);
-                }
-
-                // Group by Sprint
-                if (i.sprint?.id) {
-                  if (!sprintMetrics[i.sprint.id]) {
-                    sprintMetrics[i.sprint.id] = { count: 0, hours: 0 };
-                  }
-                  sprintMetrics[i.sprint.id].count++;
-                  sprintMetrics[i.sprint.id].hours += i.timeEstimate || 0;
                 }
               });
 
@@ -190,7 +183,6 @@ const Dashboard: React.FC = () => {
               Object.keys(issuesByStory).forEach((sId) => {
                 const storyId = Number(sId);
                 const storyIssues = issuesByStory[storyId];
-                // Check if all issues are DONE (case-insensitive)
                 const allDone = storyIssues.every(
                   (i) => i.status?.toUpperCase() === "DONE"
                 );
@@ -199,52 +191,51 @@ const Dashboard: React.FC = () => {
                 }
               });
 
-              // Fetch Sprints
-              const sprintsRes = await api.get(
-                `/sprints/project/${project.id}`
-              );
-              const allSprints = sprintsRes.data.map((s: Sprint) => ({
-                ...s,
-                issueCount: sprintMetrics[s.id]?.count || 0,
-                totalHours: sprintMetrics[s.id]?.hours || 0,
-              }));
-
-              // Sort sprints: Active first, then by end date descending
-              allSprints.sort((a: Sprint, b: Sprint) => {
-                if (a.active && !b.active) return -1;
-                if (!a.active && b.active) return 1;
-                return (
-                  new Date(b.endDate).getTime() - new Date(a.endDate).getTime()
-                );
-              });
-
-              // Process Backlog for SM and PO
-              const processedBacklog = sortedBacklog.map((s) => ({
-                ...s,
-                issueCount: issuesByStory[s.id]?.length || 0,
-              }));
-
-              // Filter backlog to exclude completed stories
-              // Also exclude if story status is explicitly DONE
-              const activeBacklog = processedBacklog.filter(
+              // Filter active backlog (exclude completed)
+              const activeBacklog = sortedBacklog.filter(
                 (s) =>
                   !completedStoryIds.has(s.id) &&
                   s.status?.toUpperCase() !== "DONE"
               );
 
-              const storiesWithoutIssues = activeBacklog.filter(
-                (s) => (s.issueCount || 0) === 0
+              // Count unestimated stories
+              const unestimatedCount = activeBacklog.filter(
+                (s) => !s.storyPoints || s.storyPoints === 0
+              ).length;
+
+              // Calculate delivered value (completed stories)
+              const completedStories = sortedBacklog.filter(
+                (s) =>
+                  completedStoryIds.has(s.id) ||
+                  s.status?.toUpperCase() === "DONE"
               );
+              const deliveredPoints = completedStories.reduce(
+                (sum, s) => sum + (s.storyPoints || 0),
+                0
+              );
+              totalDeliveredPoints += deliveredPoints;
+
+              // Backlog health metrics
+              totalStories += activeBacklog.length;
+              totalEstimatedStories += activeBacklog.filter(
+                (s) => s.storyPoints && s.storyPoints > 0
+              ).length;
+
+              // Attach sprint info to stories
+              const storiesWithSprints = activeBacklog.map((story) => {
+                const storyIssues = issuesByStory[story.id] || [];
+                const sprint = storyIssues[0]?.sprint;
+                return { ...story, sprint };
+              });
 
               newStats[project.id] = {
                 projectId: project.id,
                 totalHours,
                 completedHours,
                 progress,
-                topStories: activeBacklog.slice(0, 5),
-                allStories: activeBacklog,
-                activeSprints: allSprints, // Renamed in interface but keeping property name for now or updating interface?
-                storiesWithoutIssues,
+                topStories: storiesWithSprints.slice(0, 5),
+                allStories: storiesWithSprints,
+                unestimatedCount,
               };
             } catch (error) {
               console.error(
@@ -256,6 +247,23 @@ const Dashboard: React.FC = () => {
         );
 
         setStats(newStats);
+
+        // Calculate Global KPIs
+        const backlogHealth =
+          totalStories > 0
+            ? Math.round((totalEstimatedStories / totalStories) * 100)
+            : 0;
+        const overallProgress =
+          projectsData.length > 0
+            ? Math.round(totalProgressSum / projectsData.length)
+            : 0;
+
+        setGlobalKPIs({
+          totalProjects: projectsData.length,
+          backlogHealth,
+          overallProgress,
+          deliveredValue: totalDeliveredPoints,
+        });
       } catch (error) {
         console.error("Error fetching dashboard data", error);
       } finally {
@@ -264,19 +272,43 @@ const Dashboard: React.FC = () => {
     };
 
     fetchData();
-  }, [isPO, isSM]);
+  }, [isPO]);
 
-  if (!isPO && !isSM) {
+  if (!isPO) {
     return (
       <div style={{ padding: 24, textAlign: "center" }}>
         <Title level={3}>Bienvenido a Vantage</Title>
         <Text>
-          Este dashboard es exclusivo para Product Owners y Scrum Masters. Por
-          favor, contacta a un administrador si crees que deberías tener acceso.
+          Este dashboard es exclusivo para Product Owners. Por favor, contacta a
+          un administrador si crees que deberías tener acceso.
         </Text>
       </div>
     );
   }
+
+  const getProjectStatus = (
+    progress: number
+  ): { status: string; color: string; icon: React.ReactNode } => {
+    if (progress === 0) {
+      return {
+        status: "Bloqueado",
+        color: "red",
+        icon: <StopOutlined />,
+      };
+    } else if (progress < 30) {
+      return {
+        status: "En Riesgo",
+        color: "orange",
+        icon: <WarningOutlined />,
+      };
+    } else {
+      return {
+        status: "En Curso",
+        color: "green",
+        icon: <RocketOutlined />,
+      };
+    }
+  };
 
   const getFilteredContent = () => {
     const lowerSearch = searchText.toLowerCase();
@@ -297,82 +329,161 @@ const Dashboard: React.FC = () => {
         );
       }
 
-      // Sort by priority (already sorted within projects, but need global sort)
+      // Filter by priority
+      if (priorityFilter === "P1") {
+        allStories = allStories.filter((s) => (s.priorityScore || 0) > 10);
+      } else if (priorityFilter === "P2") {
+        allStories = allStories.filter(
+          (s) => (s.priorityScore || 0) >= 5 && (s.priorityScore || 0) <= 10
+        );
+      }
+
+      // Sort by priority
       allStories.sort(
         (a, b) => (b.priorityScore || 0) - (a.priorityScore || 0)
       );
 
-      return (
-        <Card title="Todas las Historias Priorizadas (WSJF)">
-          {allStories.length > 0 ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {allStories.map((story) => (
-                <div
-                  key={`${story.project?.id}-${story.id}`}
-                  style={{
-                    padding: "12px",
-                    border: "1px solid #f0f0f0",
-                    borderRadius: "8px",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    background: "#fff",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 12,
-                      overflow: "hidden",
-                    }}
-                  >
-                    <div style={{ display: "flex", flexDirection: "column" }}>
-                      <Text type="secondary" style={{ fontSize: 12 }}>
-                        {story.project?.icon} {story.project?.name}
-                      </Text>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        {story.epic && (
-                          <Tag color="purple">#{story.epic.epicNumber}</Tag>
-                        )}
-                        <Tag color="blue">#{story.storyNumber}</Tag>
-                        <Text strong ellipsis style={{ maxWidth: 400 }}>
-                          {story.title}
-                        </Text>
-                      </div>
-                    </div>
-                  </div>
-                  <div
-                    style={{ display: "flex", alignItems: "center", gap: 8 }}
-                  >
-                    <Tag color="purple">{story.storyPoints} pts</Tag>
-                    <Tag
-                      color={(story.priorityScore || 0) > 10 ? "red" : "orange"}
-                      icon={<TrophyOutlined />}
-                    >
-                      {story.priorityScore?.toFixed(1)}
-                    </Tag>
-                    <ProjectOutlined
-                      style={{ cursor: "pointer", color: "#1890ff" }}
-                      onClick={() =>
-                        navigate("/backlog", {
-                          state: { selectedProjectId: story.project?.id },
-                        })
-                      }
-                    />
-                  </div>
-                </div>
-              ))}
+      // Table columns
+      const columns: ColumnsType<Story> = [
+        {
+          title: "Proyecto",
+          dataIndex: ["project", "name"],
+          key: "project",
+          width: 150,
+          render: (name: string, record: Story) => (
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <span>{record.project?.icon}</span>
+              <Text ellipsis style={{ maxWidth: 120 }}>
+                {name}
+              </Text>
             </div>
-          ) : (
-            <Empty description="No se encontraron historias" />
-          )}
+          ),
+        },
+        {
+          title: "Epic",
+          dataIndex: ["epic", "epicNumber"],
+          key: "epic",
+          width: 80,
+          render: (epicNumber: number) =>
+            epicNumber ? <Tag color="purple">#{epicNumber}</Tag> : "-",
+        },
+        {
+          title: "Story",
+          dataIndex: "storyNumber",
+          key: "storyNumber",
+          width: 80,
+          render: (num: number) => <Tag color="blue">#{num}</Tag>,
+        },
+        {
+          title: "Título",
+          dataIndex: "title",
+          key: "title",
+          ellipsis: true,
+          render: (title: string) => <Text strong>{title}</Text>,
+        },
+        {
+          title: "Prioridad (WSJF)",
+          dataIndex: "priorityScore",
+          key: "priorityScore",
+          width: 150,
+          align: "center",
+          sorter: (a, b) => (b.priorityScore || 0) - (a.priorityScore || 0),
+          render: (score: number) => (
+            <Tag
+              color={score > 10 ? "red" : score > 5 ? "orange" : "default"}
+              icon={<TrophyOutlined />}
+            >
+              {score?.toFixed(1)}
+            </Tag>
+          ),
+        },
+        {
+          title: "Puntos",
+          dataIndex: "storyPoints",
+          key: "storyPoints",
+          width: 100,
+          align: "center",
+          render: (points: number) => (
+            <Tag color="purple">{points || 0} pts</Tag>
+          ),
+        },
+        {
+          title: "Estado",
+          dataIndex: "status",
+          key: "status",
+          width: 120,
+          render: (status: string) => {
+            const statusColors: Record<string, string> = {
+              BACKLOG: "default",
+              TODO: "blue",
+              DOING: "orange",
+              TESTING: "purple",
+              DONE: "green",
+            };
+            return (
+              <Tag color={statusColors[status] || "default"}>
+                {status || "BACKLOG"}
+              </Tag>
+            );
+          },
+        },
+        {
+          title: "Sprint",
+          dataIndex: ["sprint", "name"],
+          key: "sprint",
+          width: 120,
+          render: (sprintName: string) =>
+            sprintName ? <Tag color="cyan">{sprintName}</Tag> : "-",
+        },
+        {
+          title: "Acción",
+          key: "action",
+          width: 80,
+          align: "center",
+          render: (_: unknown, record: Story) => (
+            <ProjectOutlined
+              style={{ cursor: "pointer", color: "#1890ff", fontSize: 18 }}
+              onClick={() =>
+                navigate("/backlog", {
+                  state: { selectedProjectId: record.project?.id },
+                })
+              }
+            />
+          ),
+        },
+      ];
+
+      return (
+        <Card
+          title={
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <span>Backlog Prioritario (WSJF)</span>
+              <Select
+                value={priorityFilter}
+                onChange={(value) => setPriorityFilter(value)}
+                style={{ width: 150 }}
+                options={[
+                  { value: "ALL", label: "Todas" },
+                  { value: "P1", label: "P1 (Score > 10)" },
+                  { value: "P2", label: "P2 (Score 5-10)" },
+                ]}
+              />
+            </div>
+          }
+        >
+          <Table
+            columns={columns}
+            dataSource={allStories}
+            rowKey={(record) => `${record.project?.id}-${record.id}`}
+            pagination={{ pageSize: 20, showSizeChanger: true }}
+            scroll={{ x: 1200 }}
+          />
         </Card>
       );
     }
@@ -380,14 +491,13 @@ const Dashboard: React.FC = () => {
     // Default or Progress View (Project Cards)
     let filteredProjects = projects.filter((p) => {
       const nameMatch = p.name.toLowerCase().includes(lowerSearch);
-      // Also check if any story in the project matches
       const storyMatch = stats[p.id]?.allStories.some((s) =>
         s.title.toLowerCase().includes(lowerSearch)
       );
 
-      // Filter out completed projects (100% progress) unless in "PROJECTS_ALL" mode
+      // Filter out completed projects (100% progress)
       const isCompleted = stats[p.id]?.progress === 100;
-      if (isCompleted && viewMode !== "PROJECTS_ALL") {
+      if (isCompleted) {
         return false;
       }
 
@@ -408,82 +518,109 @@ const Dashboard: React.FC = () => {
           const projectStats = stats[project.id];
           if (!projectStats) return null;
 
+          const statusInfo = getProjectStatus(projectStats.progress);
+
           return (
             <Col xs={24} sm={24} md={12} lg={8} key={project.id}>
-              <Card
-                hoverable
-                title={
-                  <div
-                    style={{ display: "flex", alignItems: "center", gap: 8 }}
-                  >
-                    <span style={{ fontSize: 20 }}>{project.icon}</span>
-                    <Text ellipsis style={{ maxWidth: 200 }}>
-                      {project.name}
-                    </Text>
-                  </div>
-                }
-                actions={[
-                  <div
-                    key="details"
-                    onClick={() => navigate(`/project-details/${project.id}`)}
-                  >
-                    <ProjectOutlined /> Ver Detalles
-                  </div>,
-                ]}
-                onClick={() => navigate(`/project-details/${project.id}`)}
-              >
-                <div
-                  style={{ display: "flex", flexDirection: "column", gap: 16 }}
+              <Badge.Ribbon text={statusInfo.status} color={statusInfo.color}>
+                <Card
+                  hoverable
+                  title={
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 8 }}
+                    >
+                      <span style={{ fontSize: 20 }}>{project.icon}</span>
+                      <Text ellipsis style={{ maxWidth: 200 }}>
+                        {project.name}
+                      </Text>
+                    </div>
+                  }
+                  actions={[
+                    <div
+                      key="details"
+                      onClick={() => navigate(`/project-details/${project.id}`)}
+                    >
+                      <ProjectOutlined /> Ver Detalles
+                    </div>,
+                  ]}
+                  onClick={() => navigate(`/project-details/${project.id}`)}
                 >
-                  {/* Progress Section */}
-                  <div>
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        marginBottom: 4,
-                      }}
-                    >
-                      <Text type="secondary">Progreso del Proyecto</Text>
-                      <Text type="secondary">
-                        {projectStats.completedHours} /{" "}
-                        {projectStats.totalHours} horas
-                      </Text>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 16,
+                    }}
+                  >
+                    {/* Progress Section */}
+                    <div>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          marginBottom: 4,
+                        }}
+                      >
+                        <Text type="secondary">Progreso del Proyecto</Text>
+                        <Text type="secondary">
+                          {projectStats.completedHours} /{" "}
+                          {projectStats.totalHours} horas
+                        </Text>
+                      </div>
+                      <Progress
+                        percent={projectStats.progress}
+                        status="active"
+                        strokeColor={{
+                          "0%": "#108ee9",
+                          "100%": "#87d068",
+                        }}
+                      />
                     </div>
-                    <Progress
-                      percent={projectStats.progress}
-                      status="active"
-                      strokeColor={{
-                        "0%": "#108ee9",
-                        "100%": "#87d068",
-                      }}
-                    />
-                  </div>
 
-                  {/* Stats Row */}
-                  <Row gutter={16} style={{ marginBottom: 16 }}>
-                    <Col span={12}>
-                      <Statistic
-                        title="Horas Totales"
-                        value={projectStats.totalHours}
-                        prefix={<ClockCircleOutlined />}
-                        styles={{ content: { fontSize: 18 } }}
-                      />
-                    </Col>
-                    <Col span={12}>
-                      <Statistic
-                        title="Completado"
-                        value={projectStats.progress}
-                        suffix="%"
-                        prefix={<CheckCircleOutlined />}
-                        styles={{ content: { fontSize: 18, color: "#3f8600" } }}
-                      />
-                    </Col>
-                  </Row>
+                    {/* Stats Row */}
+                    <Row gutter={16} style={{ marginBottom: 16 }}>
+                      <Col span={12}>
+                        <Statistic
+                          title="Horas Totales"
+                          value={projectStats.totalHours}
+                          prefix={<ClockCircleOutlined />}
+                          valueStyle={{ fontSize: 18 }}
+                        />
+                      </Col>
+                      <Col span={12}>
+                        <Statistic
+                          title="Completado"
+                          value={projectStats.progress}
+                          suffix="%"
+                          prefix={<CheckCircleOutlined />}
+                          valueStyle={{ fontSize: 18, color: "#3f8600" }}
+                        />
+                      </Col>
+                    </Row>
 
-                  {/* Sprints (SM Only) */}
-                  {isSM && projectStats.activeSprints.length > 0 && (
-                    <div style={{ marginBottom: 16 }}>
+                    {/* Backlog Health */}
+                    {projectStats.unestimatedCount > 0 && (
+                      <div style={{ marginBottom: 16 }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                          }}
+                        >
+                          <Text strong>
+                            <FileTextOutlined style={{ color: "#faad14" }} />{" "}
+                            Historias sin Estimar
+                          </Text>
+                          <Tag color="warning">
+                            {projectStats.unestimatedCount}
+                          </Tag>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Top Stories */}
+                    <div>
                       <div
                         style={{
                           display: "flex",
@@ -493,137 +630,82 @@ const Dashboard: React.FC = () => {
                         }}
                       >
                         <Text strong>
-                          <ClockCircleOutlined style={{ color: "#52c41a" }} />{" "}
-                          Sprints
+                          <ThunderboltOutlined style={{ color: "#faad14" }} />{" "}
+                          Top Historias Prioritarias
                         </Text>
-                        <Tag color="blue">
-                          {projectStats.activeSprints.length} Sprints
-                        </Tag>
                       </div>
-                    </div>
-                  )}
-
-                  {/* Stories without Issues (SM Only) */}
-                  {isSM && projectStats.storiesWithoutIssues.length > 0 && (
-                    <div style={{ marginBottom: 16 }}>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          marginBottom: 8,
-                        }}
-                      >
-                        <Text strong>
-                          <CheckCircleOutlined style={{ color: "#ff4d4f" }} />{" "}
-                          Historias sin Issues
-                        </Text>
-                        <Tag color="red">
-                          {projectStats.storiesWithoutIssues.length}
-                        </Tag>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Top Stories */}
-                  <div>
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        marginBottom: 8,
-                      }}
-                    >
-                      <Text strong>
-                        <ThunderboltOutlined style={{ color: "#faad14" }} /> Top
-                        Historias Prioritarias
-                      </Text>
-                    </div>
-                    {projectStats.topStories.length > 0 ? (
-                      <div
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: 8,
-                        }}
-                      >
-                        {projectStats.topStories.map((story) => (
-                          <div
-                            key={story.id}
-                            style={{
-                              padding: "8px 0",
-                              borderBottom: "1px solid #f0f0f0",
-                              display: "flex",
-                              justifyContent: "space-between",
-                              width: "100%",
-                              alignItems: "center",
-                            }}
-                          >
+                      {projectStats.topStories.length > 0 ? (
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 8,
+                          }}
+                        >
+                          {projectStats.topStories.map((story) => (
                             <div
+                              key={story.id}
                               style={{
+                                padding: "8px 0",
+                                borderBottom: "1px solid #f0f0f0",
                                 display: "flex",
+                                justifyContent: "space-between",
+                                width: "100%",
                                 alignItems: "center",
-                                gap: 8,
-                                overflow: "hidden",
                               }}
                             >
-                              {story.epic && (
-                                <Tag color="purple">
-                                  #{story.epic.epicNumber}
-                                </Tag>
-                              )}
-                              <Tag color="blue">#{story.storyNumber}</Tag>
                               <div
                                 style={{
                                   display: "flex",
-                                  flexDirection: "column",
+                                  alignItems: "center",
+                                  gap: 8,
+                                  overflow: "hidden",
                                 }}
                               >
+                                {story.epic && (
+                                  <Tag color="purple">
+                                    #{story.epic.epicNumber}
+                                  </Tag>
+                                )}
+                                <Tag color="blue">#{story.storyNumber}</Tag>
                                 <Text ellipsis style={{ maxWidth: 150 }}>
                                   {story.title}
                                 </Text>
-                                {isSM && (
-                                  <Text
-                                    type="secondary"
-                                    style={{ fontSize: 10 }}
-                                  >
-                                    {story.issueCount} issues
-                                  </Text>
-                                )}
+                              </div>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 8,
+                                }}
+                              >
+                                <Tag color="purple">
+                                  {story.storyPoints} pts
+                                </Tag>
+                                <Tag
+                                  color={
+                                    (story.priorityScore || 0) > 10
+                                      ? "red"
+                                      : "orange"
+                                  }
+                                  icon={<TrophyOutlined />}
+                                >
+                                  {story.priorityScore?.toFixed(1)}
+                                </Tag>
                               </div>
                             </div>
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 8,
-                              }}
-                            >
-                              <Tag color="purple">{story.storyPoints} pts</Tag>
-                              <Tag
-                                color={
-                                  (story.priorityScore || 0) > 10
-                                    ? "red"
-                                    : "orange"
-                                }
-                                icon={<TrophyOutlined />}
-                              >
-                                {story.priorityScore?.toFixed(1)}
-                              </Tag>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <Empty
-                        image={Empty.PRESENTED_IMAGE_SIMPLE}
-                        description="No hay historias priorizadas"
-                      />
-                    )}
+                          ))}
+                        </div>
+                      ) : (
+                        <Empty
+                          image={Empty.PRESENTED_IMAGE_SIMPLE}
+                          description="No hay historias priorizadas"
+                        />
+                      )}
+                    </div>
                   </div>
-                </div>
-              </Card>
+                </Card>
+              </Badge.Ribbon>
             </Col>
           );
         })}
@@ -637,7 +719,7 @@ const Dashboard: React.FC = () => {
         height: "calc(100vh - 48px)",
         display: "flex",
         flexDirection: "column",
-        margin: "-24px", // Counteract MainLayout padding
+        margin: "-24px",
         overflow: "hidden",
       }}
     >
@@ -647,16 +729,76 @@ const Dashboard: React.FC = () => {
           flexShrink: 0,
           padding: "24px 24px 16px 24px",
           background: "#f0f2f5",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: 16,
         }}
       >
-        <Title level={2} style={{ margin: 0 }}>
-          Dashboard
+        <Title level={2} style={{ margin: 0, marginBottom: 16 }}>
+          Dashboard - Product Owner
         </Title>
+
+        {/* Global KPIs */}
+        <Row gutter={16} style={{ marginBottom: 16 }}>
+          <Col xs={24} sm={12} md={6}>
+            <Card>
+              <Statistic
+                title="Total de Proyectos"
+                value={globalKPIs.totalProjects}
+                prefix={<ProjectOutlined />}
+                valueStyle={{ color: "#1890ff" }}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Card>
+              <Statistic
+                title="Salud del Backlog"
+                value={globalKPIs.backlogHealth}
+                suffix="%"
+                prefix={<FundOutlined />}
+                valueStyle={{
+                  color:
+                    globalKPIs.backlogHealth > 70
+                      ? "#3f8600"
+                      : globalKPIs.backlogHealth > 40
+                      ? "#faad14"
+                      : "#cf1322",
+                }}
+              />
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                Historias estimadas
+              </Text>
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Card>
+              <Statistic
+                title="Progreso General"
+                value={globalKPIs.overallProgress}
+                suffix="%"
+                prefix={<RocketOutlined />}
+                valueStyle={{ color: "#52c41a" }}
+              />
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                Promedio de proyectos
+              </Text>
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Card>
+              <Statistic
+                title="Valor Entregado"
+                value={globalKPIs.deliveredValue}
+                suffix="pts"
+                prefix={<TrophyOutlined />}
+                valueStyle={{ color: "#faad14" }}
+              />
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                Story Points completados
+              </Text>
+            </Card>
+          </Col>
+        </Row>
+
+        {/* Filters */}
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
           <Input
             placeholder="Buscar proyecto o historia..."
@@ -677,11 +819,7 @@ const Dashboard: React.FC = () => {
               },
               {
                 value: "ALL_STORIES_PRIORITY",
-                label: "Todas las Historias (Prioridad)",
-              },
-              {
-                value: "PROJECTS_ALL",
-                label: "Ver todos los proyectos",
+                label: "Backlog Prioritario (Tabla)",
               },
             ]}
           />
@@ -694,8 +832,8 @@ const Dashboard: React.FC = () => {
           flex: 1,
           overflowY: "auto",
           padding: "0 24px 24px 24px",
-          scrollbarWidth: "none", // Firefox
-          msOverflowStyle: "none", // IE/Edge
+          scrollbarWidth: "none",
+          msOverflowStyle: "none",
         }}
         className="hide-scrollbar"
       >
