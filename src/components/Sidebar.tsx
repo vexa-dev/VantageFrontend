@@ -65,9 +65,12 @@ const Sidebar: React.FC = () => {
     },
   ];
 
-  const isOwner = user?.roles?.some((r) => r === "ROLE_OWNER" || r === "OWNER");
+  const canManageUsers = user?.roles?.some(
+    (r) =>
+      r === "ROLE_OWNER" || r === "OWNER" || r === "ROLE_ADMIN" || r === "ADMIN"
+  );
 
-  if (isOwner) {
+  if (canManageUsers) {
     menuItems.push({
       key: "/users",
       icon: <UserOutlined />,

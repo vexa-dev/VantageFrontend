@@ -41,6 +41,7 @@ const Projects: React.FC = () => {
   const [projects, setProjects] = useState<any[]>([]);
   const [scrumMasters, setScrumMasters] = useState<any[]>([]);
   const [developers, setDevelopers] = useState<any[]>([]);
+  const [productOwners, setProductOwners] = useState<any[]>([]);
   const [selectedProject, setSelectedProject] = useState<any | null>(null);
   const [isDetailsModalVisible, setIsDetailsModalVisible] = useState(false);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
@@ -63,6 +64,10 @@ const Projects: React.FC = () => {
 
   const isSM = user?.roles?.some(
     (r: string) => r === "SM" || r === "SCRUM_MASTER" || r === "ROLE_SM"
+  );
+
+  const isAdmin = user?.roles?.some(
+    (r: string) => r === "ROLE_ADMIN" || r === "ADMIN"
   );
 
   const fetchProjects = async () => {
@@ -93,11 +98,23 @@ const Projects: React.FC = () => {
     }
   };
 
+  const fetchPOs = async () => {
+    try {
+      const res = await api.get("/users/role/ROLE_PO");
+      setProductOwners(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
     fetchProjects();
     fetchScrumMasters();
     fetchDevelopers();
-  }, []);
+    if (isAdmin) {
+      fetchPOs();
+    }
+  }, [isAdmin]);
 
   const getDevMembers = (project: any) => {
     if (!project?.members) return [];
@@ -118,7 +135,9 @@ const Projects: React.FC = () => {
         name: values.name,
         description: values.description,
         icon: values.icon,
-        scrumMasterId: values.scrumMasterId,
+        poId: values.poId, // Admin selects PO
+        smId: values.scrumMasterId, // Admin selects SM
+        devIds: values.devIds, // Admin selects Devs
         startDate: values.startDate
           ? values.startDate.format("YYYY-MM-DD")
           : null,
@@ -141,7 +160,7 @@ const Projects: React.FC = () => {
     // Pre-fill assigned devs if any
     const devMembers = getDevMembers(project);
     const devIds = devMembers.map((m: any) => m.id);
-    if (isSM) {
+    if (isSM || isPO) {
       assignForm.setFieldsValue({ devIds });
     }
   };
@@ -164,12 +183,17 @@ const Projects: React.FC = () => {
 
   const openEditModal = (project: any) => {
     setSelectedProject(project);
+    const devMembers = getDevMembers(project);
+    const devIds = devMembers.map((m: any) => m.id);
+
     editForm.setFieldsValue({
       name: project.name,
       description: project.description,
       icon: project.icon,
       status: project.status,
       scrumMasterId: project.scrumMaster?.id,
+      poId: project.owner?.id,
+      devIds: devIds,
       startDate: project.startDate ? dayjs(project.startDate) : null,
       endDate: project.endDate ? dayjs(project.endDate) : null,
     });
@@ -186,19 +210,7 @@ const Projects: React.FC = () => {
           ? values.startDate.format("YYYY-MM-DD")
           : null,
         endDate: values.endDate ? values.endDate.format("YYYY-MM-DD") : null,
-        // We need to pass the full object or backend logic to handle partial updates,
-        // but for now we are updating specific fields.
-        // The backend updateProject expects a Project object.
-        // We need to ensure we send the SM object if we want to update it,
-        // but the backend logic for SM update in updateProject uses projectDetails.getScrumMaster()
-        // which comes from the request body.
-        // Let's adjust the backend or send the SM object here.
-        // Actually, the backend updateProject logic:
-        // if (projectDetails.getScrumMaster() != null) { ... }
-        // So we need to send { scrumMaster: { id: values.scrumMasterId } } if we want to update it.
-        // However, the form gives us scrumMasterId.
-        // Let's construct the object properly.
-        scrumMaster: values.scrumMasterId ? { id: values.scrumMasterId } : null,
+        // scrumMasterId, poId, and devIds are included in ...values
       });
       message.success("Proyecto actualizado exitosamente");
       setIsEditModalVisible(false);
@@ -226,45 +238,44 @@ const Projects: React.FC = () => {
     >
       <Title level={2}>Proyectos</Title>
 
-      {/* Filters */}
-      <Card style={{ marginBottom: 20 }}>
-        <Row gutter={[16, 16]} align="middle">
-          <Col xs={24} sm={8}>
-            <Input
-              prefix={<SearchOutlined />}
-              placeholder="Buscar por título o descripción"
-              value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
-            />
-          </Col>
-          <Col xs={24} sm={6}>
-            <Select
-              style={{ width: "100%" }}
-              placeholder="Filtrar por Scrum Master"
-              allowClear
-              onChange={(val) => setFilterSM(val)}
-            >
-              {scrumMasters.map((sm) => (
-                <Option key={sm.id} value={sm.id}>
-                  {sm.fullName}
-                </Option>
-              ))}
-            </Select>
-          </Col>
-          <Col xs={24} sm={6}>
-            <Select
-              style={{ width: "100%" }}
-              placeholder="Estado"
-              allowClear
-              onChange={(val) => setFilterStatus(val)}
-            >
-              <Option value="active">Activo</Option>
-              <Option value="completed">Completado</Option>
-              <Option value="archived">Archivado</Option>
-            </Select>
-          </Col>
-        </Row>
-      </Card>
+      <div
+        style={{
+          marginBottom: 20,
+          display: "flex",
+          gap: "10px",
+          flexWrap: "wrap",
+        }}
+      >
+        <Input
+          prefix={<SearchOutlined />}
+          placeholder="Buscar por nombre..."
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          style={{ width: 250 }}
+        />
+        <Select
+          allowClear
+          placeholder="Filtrar por Scrum Master"
+          style={{ width: 200 }}
+          onChange={setFilterSM}
+        >
+          {scrumMasters.map((sm) => (
+            <Option key={sm.id} value={sm.id}>
+              {sm.fullName || sm.email}
+            </Option>
+          ))}
+        </Select>
+        <Select
+          allowClear
+          placeholder="Estado"
+          style={{ width: 150 }}
+          onChange={setFilterStatus}
+        >
+          <Option value="active">Activo</Option>
+          <Option value="completed">Completado</Option>
+          <Option value="archived">Archivado</Option>
+        </Select>
+      </div>
 
       {/* Project Grid */}
       <Row gutter={[16, 16]}>
@@ -324,7 +335,7 @@ const Projects: React.FC = () => {
                 </div>
 
                 <div style={{ display: "flex", gap: 4 }}>
-                  {isPO && (
+                  {isAdmin && (
                     <Button
                       type="text"
                       icon={<EditOutlined />}
@@ -344,7 +355,6 @@ const Projects: React.FC = () => {
                 </div>
               </div>
 
-              {/* --- BODY: Descripción --- */}
               <Paragraph
                 ellipsis={{ rows: 3, expandable: false, symbol: "..." }}
                 style={{ color: "#666", flex: 1, marginBottom: 16 }}
@@ -367,7 +377,7 @@ const Projects: React.FC = () => {
                 </div>
               )}
 
-              {/* --- FOOTER: Roles y Devs --- */}
+              {/* --- FOOTER --- */}
               <div
                 style={{
                   marginTop: "auto",
@@ -376,8 +386,8 @@ const Projects: React.FC = () => {
                 }}
               >
                 <Row justify="space-between" align="bottom">
-                  {/* Columna Izquierda: Roles */}
                   <Col span={18}>
+                    {/* Roles: PO & SM */}
                     <div
                       style={{
                         display: "flex",
@@ -386,7 +396,6 @@ const Projects: React.FC = () => {
                         width: "100%",
                       }}
                     >
-                      {/* Product Owner */}
                       <div
                         style={{
                           display: "flex",
@@ -409,8 +418,6 @@ const Projects: React.FC = () => {
                           {project.owner?.fullName || "Sin asignar"}
                         </Text>
                       </div>
-
-                      {/* Scrum Master */}
                       <div
                         style={{
                           display: "flex",
@@ -433,8 +440,6 @@ const Projects: React.FC = () => {
                       </div>
                     </div>
                   </Col>
-
-                  {/* Columna Derecha: Dev Count */}
                   <Col span={6} style={{ textAlign: "right" }}>
                     <Tooltip
                       title={`${
@@ -457,8 +462,8 @@ const Projects: React.FC = () => {
         ))}
       </Row>
 
-      {/* Floating Action Button for PO */}
-      {isPO && (
+      {/* Floating Action Button for ADMIN only */}
+      {isAdmin && (
         <FloatButton
           icon={<PlusOutlined />}
           type="primary"
@@ -535,6 +540,20 @@ const Projects: React.FC = () => {
           </Row>
 
           <Form.Item
+            name="poId"
+            label="Product Owner"
+            rules={[{ required: true, message: "Selecciona un Product Owner" }]}
+          >
+            <Select placeholder="Selecciona un Product Owner">
+              {productOwners.map((po) => (
+                <Option key={po.id} value={po.id}>
+                  {po.fullName || po.email}
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          <Form.Item
             name="scrumMasterId"
             label="Scrum Master"
             rules={[
@@ -548,6 +567,25 @@ const Projects: React.FC = () => {
               {scrumMasters.map((sm) => (
                 <Option key={sm.id} value={sm.id}>
                   {sm.fullName || sm.email}
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="devIds"
+            label="Developers"
+            rules={[{ required: false }]}
+          >
+            <Select
+              mode="multiple"
+              allowClear
+              placeholder="Seleccionar Desarrolladores"
+              optionFilterProp="children"
+            >
+              {developers.map((dev) => (
+                <Option key={dev.id} value={dev.id}>
+                  {dev.fullName || dev.email}
                 </Option>
               ))}
             </Select>
@@ -632,6 +670,20 @@ const Projects: React.FC = () => {
           </Row>
 
           <Form.Item
+            name="poId"
+            label="Product Owner"
+            rules={[{ required: true, message: "Selecciona un Product Owner" }]}
+          >
+            <Select placeholder="Selecciona un Product Owner">
+              {productOwners.map((po) => (
+                <Option key={po.id} value={po.id}>
+                  {po.fullName || po.email}
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          <Form.Item
             name="scrumMasterId"
             label="Scrum Master"
             rules={[
@@ -645,6 +697,25 @@ const Projects: React.FC = () => {
               {scrumMasters.map((sm) => (
                 <Option key={sm.id} value={sm.id}>
                   {sm.fullName || sm.email}
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="devIds"
+            label="Developers"
+            rules={[{ required: false }]}
+          >
+            <Select
+              mode="multiple"
+              allowClear
+              placeholder="Seleccionar Desarrolladores"
+              optionFilterProp="children"
+            >
+              {developers.map((dev) => (
+                <Option key={dev.id} value={dev.id}>
+                  {dev.fullName || dev.email}
                 </Option>
               ))}
             </Select>
@@ -799,7 +870,7 @@ const Projects: React.FC = () => {
             )}
           </div>
 
-          {isSM && (
+          {(isSM || isPO) && (
             <div
               style={{
                 backgroundColor: "#f9f9f9",

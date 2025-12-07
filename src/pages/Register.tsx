@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Form, Input, Button, Typography, App, ConfigProvider } from "antd";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
+import PublicNavbar from "../components/PublicNavbar";
 
 // Assets
 import BackgroundImage from "../assets/Fondo-Login.jpg";
@@ -53,6 +54,7 @@ const Register: React.FC = () => {
       }}
     >
       <div style={styles.pageContainer}>
+        <PublicNavbar />
         {/* Background */}
         <div style={styles.backgroundLayer}>
           <img

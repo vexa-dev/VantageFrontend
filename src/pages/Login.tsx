@@ -3,6 +3,7 @@ import { Form, Input, Button, Typography, App, ConfigProvider } from "antd";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 import { useAuthStore } from "../store/authStore";
+import PublicNavbar from "../components/PublicNavbar";
 
 // Assets
 import LogoVantage from "../assets/Logo-LetrasDerecha.png";
@@ -51,6 +52,7 @@ const Login: React.FC = () => {
       }}
     >
       <div style={styles.pageContainer}>
+        <PublicNavbar />
         {/* IMAGEN DE FONDO FIJA */}
         <div style={styles.backgroundLayer}>
           <img

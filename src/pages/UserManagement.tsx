@@ -317,11 +317,16 @@ const UserManagement: React.FC = () => {
     },
   ];
 
-  if (!isOwner) {
+  const canManageUsers = user?.roles?.some(
+    (r) =>
+      r === "ROLE_OWNER" || r === "OWNER" || r === "ROLE_ADMIN" || r === "ADMIN"
+  );
+
+  if (!canManageUsers) {
     return (
       <Alert
         message="Acceso Restringido"
-        description="Solo el Owner puede gestionar usuarios."
+        description="No tienes permisos para gestionar usuarios."
         type="error"
         showIcon
         style={{ margin: 24 }}
@@ -380,7 +385,7 @@ const UserManagement: React.FC = () => {
               value={roleFilter}
             >
               <Option value="ALL">Todos los Roles</Option>
-              <Option value="ROLE_ADMIN">Administrador</Option>
+              {isOwner && <Option value="ROLE_ADMIN">Administrador</Option>}
               <Option value="ROLE_PO">Product Owner</Option>
               <Option value="ROLE_SM">Scrum Master</Option>
               <Option value="ROLE_DEV">Developer</Option>
@@ -450,7 +455,7 @@ const UserManagement: React.FC = () => {
             rules={[{ required: true, message: "Seleccione un rol" }]}
           >
             <Select placeholder="Seleccionar Rol">
-              <Option value="ROLE_ADMIN">Administrador</Option>
+              {isOwner && <Option value="ROLE_ADMIN">Administrador</Option>}
               <Option value="ROLE_PO">Product Owner</Option>
               <Option value="ROLE_SM">Scrum Master</Option>
               <Option value="ROLE_DEV">Developer</Option>
