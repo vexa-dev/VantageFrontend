@@ -16,6 +16,7 @@ import {
   Divider,
   Tooltip,
   DatePicker,
+  Switch,
 } from "antd";
 import {
   PlusOutlined,
@@ -52,7 +53,9 @@ const Projects: React.FC = () => {
   // Filters
   const [searchText, setSearchText] = useState("");
   const [filterSM, setFilterSM] = useState<string | null>(null);
+  const [filterPO, setFilterPO] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
+  const [showMyProjects, setShowMyProjects] = useState(false);
 
   const isPO = user?.roles?.some(
     (r: string) =>
@@ -70,9 +73,13 @@ const Projects: React.FC = () => {
     (r: string) => r === "ROLE_ADMIN" || r === "ADMIN"
   );
 
+  const isOwner = user?.roles?.some(
+    (r: string) => r === "ROLE_OWNER" || r === "OWNER"
+  );
+
   const fetchProjects = async () => {
     try {
-      const res = await api.get("/projects/all");
+      const res = await api.get("/projects");
       setProjects(res.data);
     } catch (err) {
       console.error(err);
@@ -111,10 +118,10 @@ const Projects: React.FC = () => {
     fetchProjects();
     fetchScrumMasters();
     fetchDevelopers();
-    if (isAdmin) {
+    if (isAdmin || isOwner) {
       fetchPOs();
     }
-  }, [isAdmin]);
+  }, [isAdmin, isOwner]);
 
   const getDevMembers = (project: any) => {
     if (!project?.members) return [];
@@ -228,8 +235,25 @@ const Projects: React.FC = () => {
       p.name?.toLowerCase().includes(searchText.toLowerCase()) ||
       p.description?.toLowerCase().includes(searchText.toLowerCase());
     const matchesSM = filterSM ? p.scrumMaster?.id === filterSM : true;
+    const matchesPO = filterPO ? p.owner?.id === filterPO : true;
     const matchesStatus = filterStatus ? p.status === filterStatus : true;
-    return matchesSearch && matchesSM && matchesStatus;
+
+    // My Projects Filter
+    let matchesMyProjects = true;
+    if (showMyProjects && user) {
+      const isOwner = p.owner?.id === user.id;
+      const isSM = p.scrumMaster?.id === user.id;
+      const isMember = p.members?.some((m: any) => m.id === user.id);
+      matchesMyProjects = isOwner || isSM || isMember;
+    }
+
+    return (
+      matchesSearch &&
+      matchesSM &&
+      matchesPO &&
+      matchesStatus &&
+      matchesMyProjects
+    );
   });
 
   return (
@@ -265,6 +289,22 @@ const Projects: React.FC = () => {
             </Option>
           ))}
         </Select>
+
+        {(isAdmin || isOwner) && (
+          <Select
+            allowClear
+            placeholder="Filtrar por Product Owner"
+            style={{ width: 200 }}
+            onChange={setFilterPO}
+          >
+            {productOwners.map((po) => (
+              <Option key={po.id} value={po.id}>
+                {po.fullName || po.email}
+              </Option>
+            ))}
+          </Select>
+        )}
+
         <Select
           allowClear
           placeholder="Estado"
@@ -275,6 +315,13 @@ const Projects: React.FC = () => {
           <Option value="completed">Completado</Option>
           <Option value="archived">Archivado</Option>
         </Select>
+
+        {!isAdmin && !isOwner && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Switch checked={showMyProjects} onChange={setShowMyProjects} />
+            <Text>Mis Proyectos</Text>
+          </div>
+        )}
       </div>
 
       {/* Project Grid */}
@@ -756,163 +803,189 @@ const Projects: React.FC = () => {
             <span>{selectedProject?.name}</span>
             <Tag
               color={selectedProject?.status === "active" ? "green" : "default"}
+              style={{ marginLeft: 10 }}
             >
-              {selectedProject?.status === "active"
-                ? "Activo"
-                : selectedProject?.status}
+              {selectedProject?.status || "active"}
             </Tag>
           </div>
         }
         open={isDetailsModalVisible}
         onCancel={() => setIsDetailsModalVisible(false)}
         footer={null}
-        width={700}
+        width={800}
         centered
       >
-        <div style={{ marginTop: 20 }}>
-          <Title level={5}>Descripción</Title>
-          <Paragraph style={{ whiteSpace: "pre-wrap" }}>
-            {selectedProject?.description}
-          </Paragraph>
-
-          {/* Dates in Details */}
-          {(selectedProject?.startDate || selectedProject?.endDate) && (
-            <div
-              style={{
-                marginBottom: 16,
-                backgroundColor: "#f9f9f9",
-                padding: 10,
-                borderRadius: 6,
-              }}
-            >
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Text type="secondary">Fecha de Inicio:</Text>
-                  <div>
-                    <Text strong>
-                      {selectedProject?.startDate || "No definida"}
-                    </Text>
-                  </div>
-                </Col>
-                <Col span={12}>
-                  <Text type="secondary">Fecha de Fin (Aprox):</Text>
-                  <div>
-                    <Text strong>
-                      {selectedProject?.endDate || "No definida"}
-                    </Text>
-                  </div>
-                </Col>
-              </Row>
+        {selectedProject && (
+          <div>
+            <div style={{ marginBottom: 24 }}>
+              <Text type="secondary">Descripción</Text>
+              <Paragraph
+                style={{
+                  backgroundColor: "#f5f5f5",
+                  padding: 12,
+                  borderRadius: 6,
+                  marginTop: 4,
+                }}
+              >
+                {selectedProject.description}
+              </Paragraph>
             </div>
-          )}
 
-          <Divider />
-
-          <Row gutter={[16, 16]}>
-            <Col span={12}>
-              <Text type="secondary">Product Owner (Creador)</Text>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  marginTop: 4,
-                }}
-              >
-                <Avatar
-                  icon={<SafetyCertificateOutlined />}
-                  style={{ backgroundColor: "#1890ff" }}
-                />
-                <Text strong>
-                  {selectedProject?.owner?.fullName || "Desconocido"}
-                </Text>
-              </div>
-            </Col>
-            <Col span={12}>
-              <Text type="secondary">Scrum Master</Text>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  marginTop: 4,
-                }}
-              >
-                <Avatar
-                  icon={<UserOutlined />}
-                  style={{ backgroundColor: "#fa8c16" }}
-                />
-                <Text strong>
-                  {selectedProject?.scrumMaster?.fullName || "Sin asignar"}
-                </Text>
-              </div>
-            </Col>
-          </Row>
-
-          <Divider />
-
-          <Title level={5}>Equipo de Desarrollo</Title>
-          <div style={{ marginBottom: 16 }}>
-            {getDevMembers(selectedProject).length > 0 ? (
-              <Avatar.Group max={{ count: 10 }}>
-                {getDevMembers(selectedProject).map((m: any) => (
-                  <Tooltip key={m.id} title={m.fullName}>
-                    <Avatar style={{ backgroundColor: "#87d068" }}>
-                      {m.fullName?.charAt(0).toUpperCase()}
-                    </Avatar>
-                  </Tooltip>
-                ))}
-              </Avatar.Group>
-            ) : (
-              <Text type="secondary">
-                No hay desarrolladores asignados aún.
-              </Text>
-            )}
-          </div>
-
-          {(isSM || isPO) && (
-            <div
-              style={{
-                backgroundColor: "#f9f9f9",
-                padding: 16,
-                borderRadius: 8,
-                marginTop: 20,
-              }}
-            >
-              <Title level={5} style={{ marginTop: 0 }}>
-                Asignar Desarrolladores
-              </Title>
-              <Form
-                form={assignForm}
-                layout="vertical"
-                onFinish={handleAssignDevs}
-              >
-                <Form.Item
-                  name="devIds"
-                  label="Selecciona los desarrolladores para este proyecto"
-                >
-                  <Select
-                    mode="multiple"
-                    placeholder="Buscar desarrolladores..."
-                    optionFilterProp="children"
-                    style={{ width: "100%" }}
+            <Row gutter={16} style={{ marginBottom: 24 }}>
+              <Col span={12}>
+                <Card size="small" title="Fechas">
+                  <div
+                    style={{ display: "flex", flexDirection: "column", gap: 8 }}
                   >
-                    {developers.map((dev) => (
-                      <Option key={dev.id} value={dev.id}>
-                        {dev.fullName || dev.email}
-                      </Option>
-                    ))}
-                  </Select>
-                </Form.Item>
-                <Form.Item style={{ textAlign: "right", marginBottom: 0 }}>
-                  <Button type="primary" htmlType="submit" loading={loading}>
-                    Guardar Asignación
-                  </Button>
-                </Form.Item>
-              </Form>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <Text type="secondary">Inicio:</Text>
+                      <Text strong>{selectedProject.startDate || "N/A"}</Text>
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <Text type="secondary">Fin (Estimado):</Text>
+                      <Text strong>{selectedProject.endDate || "N/A"}</Text>
+                    </div>
+                  </div>
+                </Card>
+              </Col>
+              <Col span={12}>
+                <Card size="small" title="Equipo Principal">
+                  <div
+                    style={{ display: "flex", flexDirection: "column", gap: 8 }}
+                  >
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 8 }}
+                    >
+                      <SafetyCertificateOutlined style={{ color: "#1890ff" }} />
+                      <div>
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          Product Owner
+                        </Text>
+                        <div style={{ fontWeight: 500 }}>
+                          {selectedProject.owner?.fullName || "Sin asignar"}
+                        </div>
+                      </div>
+                    </div>
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 8 }}
+                    >
+                      <UserOutlined style={{ color: "#fa8c16" }} />
+                      <div>
+                        <Text type="secondary" style={{ fontSize: 12 }}>
+                          Scrum Master
+                        </Text>
+                        <div style={{ fontWeight: 500 }}>
+                          {selectedProject.scrumMaster?.fullName ||
+                            "Sin asignar"}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              </Col>
+            </Row>
+
+            <Divider>Equipo de Desarrollo</Divider>
+
+            <div style={{ marginBottom: 16 }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 8,
+                  marginBottom: 16,
+                }}
+              >
+                {getDevMembers(selectedProject).length > 0 ? (
+                  getDevMembers(selectedProject).map((dev: any) => (
+                    <Tag
+                      icon={<UserOutlined />}
+                      color="blue"
+                      key={dev.id}
+                      style={{ padding: "4px 10px", fontSize: 14 }}
+                    >
+                      {dev.fullName || dev.email}
+                    </Tag>
+                  ))
+                ) : (
+                  <Text type="secondary" italic>
+                    No hay desarrolladores asignados aún.
+                  </Text>
+                )}
+              </div>
+
+              {(isSM || isPO) && (
+                <div
+                  style={{
+                    backgroundColor: "#f9f9f9",
+                    padding: 16,
+                    borderRadius: 8,
+                  }}
+                >
+                  <Text strong style={{ display: "block", marginBottom: 8 }}>
+                    Gestión de Miembros
+                  </Text>
+                  <Form
+                    form={assignForm}
+                    layout="inline"
+                    onFinish={handleAssignDevs}
+                  >
+                    <Form.Item
+                      name="devIds"
+                      style={{ flex: 1, marginBottom: 0 }}
+                    >
+                      <Select
+                        mode="multiple"
+                        placeholder="Seleccionar desarrolladores para asignar"
+                        style={{ width: "100%" }}
+                        optionFilterProp="children"
+                      >
+                        {developers.map((dev) => (
+                          <Option key={dev.id} value={dev.id}>
+                            {dev.fullName || dev.email}
+                          </Option>
+                        ))}
+                      </Select>
+                    </Form.Item>
+                    <Form.Item style={{ marginBottom: 0 }}>
+                      <Button
+                        type="primary"
+                        htmlType="submit"
+                        loading={loading}
+                        icon={<TeamOutlined />}
+                      >
+                        Actualizar Equipo
+                      </Button>
+                    </Form.Item>
+                  </Form>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+
+            <div
+              style={{
+                textAlign: "right",
+                marginTop: 24,
+                paddingTop: 16,
+                borderTop: "1px solid #f0f0f0",
+              }}
+            >
+              <Button onClick={() => setIsDetailsModalVisible(false)}>
+                Cerrar
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

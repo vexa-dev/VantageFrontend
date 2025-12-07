@@ -101,7 +101,7 @@ const Backlog: React.FC = () => {
     const fetchProjects = async () => {
       setLoadingProjects(true);
       try {
-        const res = await api.get("/projects");
+        const res = await api.get("/projects/backlog");
         setProjects(res.data);
         if (res.data.length > 0) {
           // Only set default if not already set (e.g. from navigation state)
@@ -681,9 +681,11 @@ const Backlog: React.FC = () => {
                       alignItems: "center",
                     }}
                   >
-                    <Tooltip title="Story Points">
+                    <Tooltip title="Story Points / T-Shirt">
                       <Tag icon={<TrophyOutlined />} color="purple">
-                        {story.storyPoints} pts
+                        {story.storyPoints
+                          ? `${story.storyPoints} pts`
+                          : story.tshirtSize || "N/A"}
                       </Tag>
                     </Tooltip>
 
@@ -771,8 +773,9 @@ const Backlog: React.FC = () => {
           form={storyForm}
           layout="vertical"
           onFinish={handleCreateStory}
-          initialValues={{ storyPoints: 1, businessValue: 0, urgency: 0 }}
+          initialValues={{ businessValue: 0, urgency: 0 }}
         >
+          {/* ... (existing fields) ... */}
           <Form.Item
             name="title"
             label="Título"
@@ -845,8 +848,10 @@ const Backlog: React.FC = () => {
             )}
           </Form.List>
 
+          {/* ... (re-using existing content until Row) ... */}
+
           <Row gutter={16}>
-            <Col span={12}>
+            <Col span={8}>
               <Form.Item
                 name="businessValue"
                 label="Valor Negocio"
@@ -855,9 +860,24 @@ const Backlog: React.FC = () => {
                 <InputNumber min={0} max={100} style={{ width: "100%" }} />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col span={8}>
               <Form.Item name="urgency" label="Urgencia" tooltip="0-100">
                 <InputNumber min={0} max={100} style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item
+                name="tshirtSize"
+                label="T-Shirt Size"
+                tooltip="Estimación Provisional"
+              >
+                <Select placeholder="Selecciona Talla">
+                  {["XS", "S", "M", "L", "XL"].map((size) => (
+                    <Option key={size} value={size}>
+                      {size}
+                    </Option>
+                  ))}
+                </Select>
               </Form.Item>
             </Col>
           </Row>
@@ -1034,7 +1054,7 @@ const Backlog: React.FC = () => {
             </Col>
             <Col span={8}>
               <Form.Item name="storyPoints" label="Puntos" tooltip="Fibonacci">
-                <Select disabled={!isSM}>
+                <Select disabled={!isSM} allowClear>
                   {[1, 2, 3, 5, 8, 13, 21].map((p) => (
                     <Option key={p} value={p}>
                       {p}
@@ -1044,6 +1064,27 @@ const Backlog: React.FC = () => {
               </Form.Item>
             </Col>
           </Row>
+
+          {isPO &&
+            (!editingStory?.storyPoints || editingStory.storyPoints === 0) && (
+              <Row gutter={16}>
+                <Col span={8}>
+                  <Form.Item
+                    name="tshirtSize"
+                    label="T-Shirt Size"
+                    tooltip="Estimación Provisional"
+                  >
+                    <Select placeholder="Selecciona Talla">
+                      {["XS", "S", "M", "L", "XL"].map((size) => (
+                        <Option key={size} value={size}>
+                          {size}
+                        </Option>
+                      ))}
+                    </Select>
+                  </Form.Item>
+                </Col>
+              </Row>
+            )}
 
           <Form.Item style={{ textAlign: "right", marginBottom: 0 }}>
             <Button
@@ -1182,6 +1223,15 @@ const Backlog: React.FC = () => {
                 </Card>
               </Col>
             </Row>
+
+            {/* T-Shirt Size Display */}
+            {selectedStoryDetails.tshirtSize && (
+              <div style={{ textAlign: "right", marginTop: 4 }}>
+                <Text type="secondary" style={{ fontSize: "12px" }}>
+                  T-Shirt Size: {selectedStoryDetails.tshirtSize}
+                </Text>
+              </div>
+            )}
 
             <div
               style={{
