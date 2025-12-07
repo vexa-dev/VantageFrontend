@@ -3,7 +3,7 @@ import type { AuthResponse } from '../types';
 
 interface AuthState {
   token: string | null;
-  user: { id: number; email: string; roles: string[] } | null;
+  user: { id: number; email: string; fullName: string; roles: string[] } | null;
   isAuthenticated: boolean;
   
   // Acciones
@@ -18,7 +18,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   setLogin: (data: AuthResponse) => {
     localStorage.setItem('token', data.token);
-    const userData = { id: data.id, email: data.email, roles: data.roles };
+    const userData = { id: data.id, email: data.email, fullName: data.fullName, roles: data.roles };
     localStorage.setItem('user', JSON.stringify(userData));
     
     set({ 

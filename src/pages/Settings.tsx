@@ -64,7 +64,7 @@ const Settings: React.FC = () => {
           layout="vertical"
           onFinish={handleProfileUpdate}
           initialValues={{
-            fullName: user?.email?.split("@")[0] || "", // Placeholder hasta que tengamos fullName
+            fullName: user?.fullName || "",
             email: user?.email || "",
             role: user?.roles?.map((r) => formatRole(r)).join(", ") || "",
           }}

@@ -101,13 +101,16 @@ const Dashboard: React.FC = () => {
     "ALL"
   );
 
-  const isPO = user?.roles?.some(
-    (r: string) =>
-      r === "PO" ||
-      r === "PRODUCT_OWNER" ||
-      r === "ROLE_PO" ||
-      r === "ROLE_PRODUCT_OWNER"
-  );
+  const isPO = user?.roles?.some((r) => r === "ROLE_PO" || r === "PO");
+  const isOwner = user?.roles?.some((r) => r === "ROLE_OWNER" || r === "OWNER");
+
+  if (isOwner) {
+    return (
+      <div style={{ padding: 24, textAlign: "center", marginTop: 50 }}>
+        <Title level={2}>Este es el dashboard del owner</Title>
+      </div>
+    );
+  }
 
   useEffect(() => {
     const fetchData = async () => {

@@ -34,10 +34,10 @@ const Sidebar: React.FC = () => {
 
   const menuItems = [
     {
-      key: "/",
+      key: "/dashboard",
       icon: <DashboardOutlined />,
       label: "Dashboard",
-      onClick: () => navigate("/"),
+      onClick: () => navigate("/dashboard"),
     },
     {
       key: "/projects",

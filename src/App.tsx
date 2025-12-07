@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
+import LandingPage from "./pages/LandingPage";
+import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import Backlog from "./pages/Backlog";
 import Sprints from "./pages/Sprints";
@@ -24,6 +26,8 @@ function App() {
       <Routes>
         {/* Ruta Pública */}
         <Route path="/login" element={<Login />} />
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/register" element={<Register />} />
 
         {/* Rutas Privadas con Layout */}
         <Route
@@ -33,7 +37,7 @@ function App() {
             </PrivateRoute>
           }
         >
-          <Route path="/" element={<Dashboard />} />
+          <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/projects" element={<Projects />} />
           <Route path="/backlog" element={<Backlog />} />
           <Route path="/sprints" element={<Sprints />} />
