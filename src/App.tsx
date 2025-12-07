@@ -9,6 +9,7 @@ import Projects from "./pages/Projects";
 import Settings from "./pages/Settings";
 import Issues from "./pages/Issues";
 import KanbanBoard from "./pages/KanbanBoard";
+import UserManagement from "./pages/UserManagement";
 import ProjectDetails from "./pages/ProjectDetails";
 import MainLayout from "./components/MainLayout";
 import { useAuthStore } from "./store/authStore";
@@ -44,6 +45,7 @@ function App() {
           <Route path="/settings" element={<Settings />} />
           <Route path="/issues/:storyId" element={<Issues />} />
           <Route path="/kanban" element={<KanbanBoard />} />
+          <Route path="/users" element={<UserManagement />} />
           <Route
             path="/project-details/:projectId"
             element={<ProjectDetails />}
